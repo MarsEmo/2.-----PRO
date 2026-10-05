@@ -9323,7 +9323,7 @@ document.querySelectorAll('input').forEach(input => {
         if(callback) callback();
     };
 
-    // ================= 游戏进度推演 V50 终极纯粹状态驱动版 (根除DOM重构污染+物理隔离注入) =================
+    // ================= 游戏进度推演 V51 终极防弹版 (强制类型洗脱 + 绝对破限) =================
     (function(){
         if(window.simEngine && window.simEngine.chartInstance) { try { window.simEngine.chartInstance.destroy(); } catch(e){} }
         window.simEngine = {
@@ -9331,7 +9331,7 @@ document.querySelectorAll('input').forEach(input => {
             chartInstance: null,
             init() {
                 try {
-                    let startEl = document.getElementById('sim_start_date'); let saved = localStorage.getItem('jy_sim_v50_state');
+                    let startEl = document.getElementById('sim_start_date'); let saved = localStorage.getItem('jy_sim_v51_state');
                     if (saved) {
                         let parsed = JSON.parse(saved); parsed.startDate = new Date(parsed.startDate); this.state = parsed;
                         if(startEl) startEl.value = new Date(this.state.startDate.getTime() - (this.state.startDate.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
@@ -9344,7 +9344,7 @@ document.querySelectorAll('input').forEach(input => {
             },
             clearAll() {
                 if(confirm("确定要清空沙盘的所有推演进度吗？\n\n此操作不可逆！")) {
-                    this.state = { startDate: new Date(), trackedSkills: [], nodes: [] }; localStorage.removeItem('jy_sim_v50_state'); this.init();
+                    this.state = { startDate: new Date(), trackedSkills: [], nodes: [] }; localStorage.removeItem('jy_sim_v51_state'); this.init();
                 }
             },
             snapshotEff() {
@@ -9406,7 +9406,6 @@ document.querySelectorAll('input').forEach(input => {
                 this.state.trackedSkills.forEach(s => { if(s.introducedAtNode > index) s.introducedAtNode = Math.max(0, s.introducedAtNode - 1); });
                 this.recalculate(); 
             },
-            // 🚀 V50核心机制：只做纯粹的内存绑定，绝不触发交叉覆盖
             updateItemAlloc(nodeIndex, skillId, type, val) {
                 if(this.state.nodes[nodeIndex]) {
                     if(!this.state.nodes[nodeIndex].itemAlloc) this.state.nodes[nodeIndex].itemAlloc = {};
@@ -9424,17 +9423,25 @@ document.querySelectorAll('input').forEach(input => {
                     
                     let globalAccumulatedHours = 0; 
                     let inventory = { fullBook: 0, secretBook: 0 }; let accFull = 0, accSecret = 0; 
-                    let runningStatus = {}; this.state.trackedSkills.forEach(s => { runningStatus[String(s.uid || s.id)] = { lv: s.startLv, exp: s.startExp }; });
                     
-                    const DAILY_BOOK_LIMIT = 10; const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21;
+                    // 🚀 V51 防弹修复 1/3：强制数值转型，杜绝一切隐式字符串拼接引发的 NaN 崩溃！
+                    let runningStatus = {}; 
+                    this.state.trackedSkills.forEach(s => { 
+                        runningStatus[String(s.uid || s.id)] = { 
+                            lv: Number(s.startLv) || 1, 
+                            exp: Number(s.startExp) || 0 
+                        }; 
+                    });
+                    
+                    const DAILY_BOOK_LIMIT = 10; const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? Number(FIXED_SS_HOURS) : 21;
                     let bookFullExp = 2500000; let bookSecretExp = 400000;
                     if (typeof EXP_CONSTANTS !== 'undefined') {
-                        if (parseInt(EXP_CONSTANTS.BOOK_FULL) > 0) bookFullExp = parseInt(EXP_CONSTANTS.BOOK_FULL);
-                        if (parseInt(EXP_CONSTANTS.BOOK_SECRET) > 0) bookSecretExp = parseInt(EXP_CONSTANTS.BOOK_SECRET);
+                        if (Number(EXP_CONSTANTS.BOOK_FULL) > 0) bookFullExp = Number(EXP_CONSTANTS.BOOK_FULL);
+                        if (Number(EXP_CONSTANTS.BOOK_SECRET) > 0) bookSecretExp = Number(EXP_CONSTANTS.BOOK_SECRET);
                     }
 
                     this.state.nodes.forEach(node => {
-                        let nodeHours = parseFloat(node.hours) || 0;
+                        let nodeHours = Number(node.hours) || 0;
                         const nodeStartTime = new Date(currentTime); globalAccumulatedHours += nodeHours; currentTime += nodeHours * 60 * 60 * 1000; const nodeEndTime = new Date(currentTime);
                         node.cumulativeHours = globalAccumulatedHours;
                         
@@ -9445,7 +9452,6 @@ document.querySelectorAll('input').forEach(input => {
                         
                         let eff = node.eff; 
                         
-                        // 🚀 V50安全锁：读写分离。只保存实际消耗，不再覆盖用户的原始输入 (绝不污染 node.itemAlloc)
                         if(!node._actualConsumption) node._actualConsumption = {};
                         this.state.trackedSkills.forEach(s => {
                             let sid = String(s.uid || s.id);
@@ -9453,8 +9459,8 @@ document.querySelectorAll('input').forEach(input => {
                             if(!node.itemAlloc) node.itemAlloc = {};
                             if(!node.itemAlloc[sid]) node.itemAlloc[sid] = { full: 0, secret: 0 };
                             
-                            let wantFull = parseInt(node.itemAlloc[sid].full) || 0;
-                            let wantSecret = parseInt(node.itemAlloc[sid].secret) || 0;
+                            let wantFull = Number(node.itemAlloc[sid].full) || 0;
+                            let wantSecret = Number(node.itemAlloc[sid].secret) || 0;
 
                             let actFull = Math.min(wantFull, Math.floor(inventory.fullBook));
                             let actSecret = Math.min(wantSecret, Math.floor(inventory.secretBook));
@@ -9475,8 +9481,8 @@ document.querySelectorAll('input').forEach(input => {
                                 if (node.index < (s.introducedAtNode || 0)) return;
                                 let aType = node.actions[sid] || ""; if (aType === '--无操作--' || aType === '') return;
                                 let st = baseStatus[sid];
-                                let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1); 
-                                let safeTarget = Math.min(s.targetLv || 1, cap);
+                                let cap = (typeof getSkillLevelCap === 'function') ? Number(getSkillLevelCap(s.skill)) : 500; cap = Math.max(cap, Number(s.targetLv) || 1); 
+                                let safeTarget = Math.min(Number(s.targetLv) || 1, cap);
                                 let isReadingOp = aType.includes('read') || aType.includes('qianben') || aType.includes('jingyao');
                                 if (isReadingOp && !aType.includes('zixiu')) safeTarget = Math.min(safeTarget, 200);
                                 if (st.lv >= safeTarget) return;
@@ -9498,15 +9504,15 @@ document.querySelectorAll('input').forEach(input => {
                             skillsToProcess.forEach(s => {
                                 let sid = String(s.uid || s.id); let st = baseStatus[sid]; let aType = node.actions[sid]; let isShibi = s.skill.cat === "石壁武学";
                                 let zRate = 0;
-                                if (aZixiuSkills.includes(s)) { let activeTick = eff.zixiuTick; if (isShibi && st.lv < 100) activeTick = 800; zRate = ((3600 / eff.speed) * activeTick) / zixiuCount; }
+                                if (aZixiuSkills.includes(s)) { let activeTick = Number(eff.zixiuTick); if (isShibi && st.lv < 100) activeTick = 800; zRate = ((3600 / Number(eff.speed)) * activeTick) / zixiuCount; }
                                 let rRate = 0;
                                 if (aReadSkill === s) {
-                                    if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, eff.wx) * (s.bibleMult || 1); rRate = 2 * expPerBook; } 
+                                    if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, Number(eff.wx)) * (Number(s.bibleMult) || 1); rRate = 2 * expPerBook; } 
                                     else if (aType.includes('qianben') || aType.includes('jingyao')) { rRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; }
                                 }
                                 rates[sid] = zRate + rRate;
                                 if (rates[sid] > 0) {
-                                    let lvlCost = Math.round(Math.pow(st.lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
+                                    let lvlCost = Math.round(Math.pow(st.lv + 1, Number(s.skill.wgcf)||1) * (Number(s.skill.ndxs)||1) + (Number(s.skill.fjsl) || 0));
                                     let expNeeded = Math.max(0, lvlCost - st.exp); let t = expNeeded / rates[sid];
                                     let maxChanTime = Infinity;
                                     if (aZixiuSkills.includes(s)) maxChanTime = Math.min(maxChanTime, bZixiuLeft);
@@ -9522,35 +9528,34 @@ document.querySelectorAll('input').forEach(input => {
                                 let sid = String(s.uid || s.id);
                                 if (rates[sid] > 0) {
                                     baseStatus[sid].exp += stepTime * rates[sid];
-                                    let lvlCost = Math.round(Math.pow(baseStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
+                                    let lvlCost = Math.round(Math.pow(baseStatus[sid].lv + 1, Number(s.skill.wgcf)||1) * (Number(s.skill.ndxs)||1) + (Number(s.skill.fjsl) || 0));
                                     while (baseStatus[sid].exp >= lvlCost - 0.5) {
                                         baseStatus[sid].exp -= lvlCost; baseStatus[sid].lv++;
-                                        let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1);
+                                        let cap = (typeof getSkillLevelCap === 'function') ? Number(getSkillLevelCap(s.skill)) : 500; cap = Math.max(cap, Number(s.targetLv) || 1);
                                         if(baseStatus[sid].lv >= cap) { baseStatus[sid].exp = 0; break; }
-                                        lvlCost = Math.round(Math.pow(baseStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
+                                        lvlCost = Math.round(Math.pow(baseStatus[sid].lv + 1, Number(s.skill.wgcf)||1) * (Number(s.skill.ndxs)||1) + (Number(s.skill.fjsl) || 0));
                                     }
                                 }
                             });
                         }
                         node.trainedSnapshot = JSON.parse(JSON.stringify(baseStatus)); 
 
-                        // ============ 宇宙 2：主宇宙 (绝对暴力内联突破层) ============
+                        // 🚀 V51 防弹修复 2/3：主宇宙暴力灌注。就算天塌下来，这几千万经验也必须砸进去！
                         this.state.trackedSkills.forEach(s => {
                             let sid = String(s.uid || s.id);
-                            if (node.index < (s.introducedAtNode || 0)) return;
+                            if (node.index < (Number(s.introducedAtNode) || 0)) return;
                             
-                            // 直接读取沙盘真实消耗量，完全不看任何 DOM
-                            let costFull = node._actualConsumption[sid] ? node._actualConsumption[sid].full : 0;
-                            let costSec = node._actualConsumption[sid] ? node._actualConsumption[sid].secret : 0;
+                            let costFull = node._actualConsumption[sid] ? Number(node._actualConsumption[sid].full) : 0;
+                            let costSec = node._actualConsumption[sid] ? Number(node._actualConsumption[sid].secret) : 0;
                             let itemExp = (costFull * bookFullExp) + (costSec * bookSecretExp); 
 
-                            // 只要物品产生了哪怕1点经验，都暴力推开所有天花板！
                             if (itemExp > 0) {
                                 let st = runningStatus[sid];
-                                st.exp += itemExp;
-                                let wgcf = parseFloat(s.skill.wgcf) || 1.0;
-                                let ndxs = parseFloat(s.skill.ndxs) || 1.0;
-                                let fjsl = parseFloat(s.skill.fjsl) || 0.0;
+                                st.exp += itemExp; // 强行拉升经验池
+                                
+                                let wgcf = Number(s.skill.wgcf) || 1.0;
+                                let ndxs = Number(s.skill.ndxs) || 1.0;
+                                let fjsl = Number(s.skill.fjsl) || 0.0;
                                 
                                 for (let jump = 0; jump < 9999; jump++) {
                                     let cost = Math.round(Math.pow(st.lv + 1, wgcf) * ndxs + fjsl);
@@ -9577,11 +9582,11 @@ document.querySelectorAll('input').forEach(input => {
                             let activeReadSkill = null; let activeZixiuSkills = [];
                             this.state.trackedSkills.forEach(s => {
                                 let sid = String(s.uid || s.id);
-                                if (node.index < (s.introducedAtNode || 0)) return;
+                                if (node.index < (Number(s.introducedAtNode) || 0)) return;
                                 let aType = node.actions[sid] || ""; if (aType === '--无操作--' || aType === '') return;
                                 let st = runningStatus[sid];
-                                let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1); 
-                                let safeTarget = Math.min(s.targetLv || 1, cap);
+                                let cap = (typeof getSkillLevelCap === 'function') ? Number(getSkillLevelCap(s.skill)) : 500; cap = Math.max(cap, Number(s.targetLv) || 1); 
+                                let safeTarget = Math.min(Number(s.targetLv) || 1, cap);
                                 let isReadingOp = aType.includes('read') || aType.includes('qianben') || aType.includes('jingyao');
                                 if (isReadingOp && !aType.includes('zixiu')) safeTarget = Math.min(safeTarget, 200);
 
@@ -9604,15 +9609,15 @@ document.querySelectorAll('input').forEach(input => {
                             skillsToProcess.forEach(s => {
                                 let sid = String(s.uid || s.id); let st = runningStatus[sid]; let aType = node.actions[sid]; let isShibi = s.skill.cat === "石壁武学";
                                 let zRate = 0;
-                                if (activeZixiuSkills.includes(s)) { let activeTick = eff.zixiuTick; if (isShibi && st.lv < 100) activeTick = 800; zRate = ((3600 / eff.speed) * activeTick) / zixiuCount; }
+                                if (activeZixiuSkills.includes(s)) { let activeTick = Number(eff.zixiuTick); if (isShibi && st.lv < 100) activeTick = 800; zRate = ((3600 / Number(eff.speed)) * activeTick) / zixiuCount; }
                                 let rRate = 0;
                                 if (activeReadSkill === s) {
-                                    if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, eff.wx) * (s.bibleMult || 1); rRate = 2 * expPerBook; } 
+                                    if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, Number(eff.wx)) * (Number(s.bibleMult) || 1); rRate = 2 * expPerBook; } 
                                     else if (aType.includes('qianben') || aType.includes('jingyao')) { rRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; }
                                 }
                                 rates[sid] = zRate + rRate;
                                 if (rates[sid] > 0) {
-                                    let lvlCost = Math.round(Math.pow(st.lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
+                                    let lvlCost = Math.round(Math.pow(st.lv + 1, Number(s.skill.wgcf)||1) * (Number(s.skill.ndxs)||1) + (Number(s.skill.fjsl) || 0));
                                     let expNeeded = Math.max(0, lvlCost - st.exp); let t = expNeeded / rates[sid];
                                     let maxChanTime = Infinity;
                                     if (activeZixiuSkills.includes(s)) maxChanTime = Math.min(maxChanTime, zixiuHoursLeft);
@@ -9630,12 +9635,12 @@ document.querySelectorAll('input').forEach(input => {
                                     let expGain = stepTime * rates[sid]; runningStatus[sid].exp += expGain; expGainedMap[sid] += expGain;
                                     if (activeZixiuSkills.includes(s)) zixiuHoursUsedMap[sid] += stepTime;
                                     if (activeReadSkill === s) readHoursUsedMap[sid] += stepTime;
-                                    let lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
+                                    let lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, Number(s.skill.wgcf)||1) * (Number(s.skill.ndxs)||1) + (Number(s.skill.fjsl) || 0));
                                     while (runningStatus[sid].exp >= lvlCost - 0.5) {
                                         runningStatus[sid].exp -= lvlCost; runningStatus[sid].lv++;
-                                        let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1); 
+                                        let cap = (typeof getSkillLevelCap === 'function') ? Number(getSkillLevelCap(s.skill)) : 500; cap = Math.max(cap, Number(s.targetLv) || 1); 
                                         if(runningStatus[sid].lv >= cap) { runningStatus[sid].exp = 0; break; }
-                                        lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
+                                        lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, Number(s.skill.wgcf)||1) * (Number(s.skill.ndxs)||1) + (Number(s.skill.fjsl) || 0));
                                     }
                                 }
                             });
@@ -9644,7 +9649,7 @@ document.querySelectorAll('input').forEach(input => {
                         let maxZixiuUsedInNode = 0;
                         this.state.trackedSkills.forEach(s => {
                             let sid = String(s.uid || s.id);
-                            if (node.index < (s.introducedAtNode || 0)) return;
+                            if (node.index < (Number(s.introducedAtNode) || 0)) return;
                             let zUsed = zixiuHoursUsedMap[sid] || 0; let rUsed = readHoursUsedMap[sid] || 0;
                             if (zUsed > maxZixiuUsedInNode) maxZixiuUsedInNode = zUsed;
                             let aType = node.actions[sid] || "";
@@ -9653,19 +9658,18 @@ document.querySelectorAll('input').forEach(input => {
 
                         node.usedHours = Math.max(nodeHours - zixiuHoursLeft, maxZixiuUsedInNode);
                         if(node.cumulativeHours >= 4000) {
-                            let twDailyUlt = Math.floor(eff.twUltTick * (typeof TICKS_PER_DAY_TW !== 'undefined' ? TICKS_PER_DAY_TW : 1260));
-                            let twDailyParry = Math.floor(eff.twParryTick * (typeof TICKS_PER_DAY_TW !== 'undefined' ? TICKS_PER_DAY_TW : 1260));
+                            let twDailyUlt = Math.floor(Number(eff.twUltTick) * (typeof TICKS_PER_DAY_TW !== 'undefined' ? Number(TICKS_PER_DAY_TW) : 1260));
+                            let twDailyParry = Math.floor(Number(eff.twParryTick) * (typeof TICKS_PER_DAY_TW !== 'undefined' ? Number(TICKS_PER_DAY_TW) : 1260));
                             const processTianwu = (selectedId, hourlyExp) => {
                                 if(selectedId) {
                                     let tSkill = this.state.trackedSkills.find(x => String(x.uid || x.id) === String(selectedId));
-                                    if(tSkill && node.index >= (tSkill.introducedAtNode || 0)) {
+                                    if(tSkill && node.index >= (Number(tSkill.introducedAtNode) || 0)) {
                                         let sid = String(tSkill.uid || tSkill.id);
-                                        let unlockLv = (typeof TIANWU_UNLOCK_LEVELS !== 'undefined' && TIANWU_UNLOCK_LEVELS[tSkill.skill.name]) ? TIANWU_UNLOCK_LEVELS[tSkill.skill.name] : 1;
+                                        let unlockLv = (typeof TIANWU_UNLOCK_LEVELS !== 'undefined' && TIANWU_UNLOCK_LEVELS[tSkill.skill.name]) ? Number(TIANWU_UNLOCK_LEVELS[tSkill.skill.name]) : 1;
                                         if(runningStatus[sid].lv >= unlockLv) {
                                             runningStatus[sid].exp += nodeHours * hourlyExp;
                                             while(true) {
-                                                let wgcf = parseFloat(tSkill.skill.wgcf) || 1; let ndxs = parseFloat(tSkill.skill.ndxs) || 1; let fjsl = parseFloat(tSkill.skill.fjsl) || 0;
-                                                let lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, wgcf) * ndxs + fjsl);
+                                                let lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, Number(tSkill.skill.wgcf)||1) * (Number(tSkill.skill.ndxs)||1) + (Number(tSkill.skill.fjsl) || 0));
                                                 if(runningStatus[sid].exp >= lvlCost - 0.5) { runningStatus[sid].exp -= lvlCost; runningStatus[sid].lv++; } else { break; }
                                             }
                                         }
@@ -9678,11 +9682,11 @@ document.querySelectorAll('input').forEach(input => {
                         node.startTimeStr = this._formatDate(nodeStartTime); node.endTimeStr = this._formatDate(nodeEndTime);
                     });
                     
-                    localStorage.setItem('jy_sim_v50_state', JSON.stringify(this.state));
+                    localStorage.setItem('jy_sim_v51_state', JSON.stringify(this.state));
                     this.renderDOM(); this.renderDashboard();
                     const chartWrapper = document.getElementById('sim_chart_wrapper');
                     if(chartWrapper && chartWrapper.style.display !== 'none') this.drawChart();
-                } catch(e) { console.error("Recalculate Error:", e); }
+                } catch(e) { console.error("V51核心引擎阻断:", e); }
             },
             drawChart() {
                 if (typeof Chart === 'undefined') return;
@@ -9697,7 +9701,7 @@ document.querySelectorAll('input').forEach(input => {
                     let dataPoints = [s.startLv]; 
                     this.state.nodes.forEach(n => { 
                         let sid = String(s.uid || s.id);
-                        if (n.index < (s.introducedAtNode || 0)) { dataPoints.push(null); } else { let st = n.snapshot[sid] || { lv: s.startLv }; dataPoints.push(st.lv); }
+                        if (n.index < (Number(s.introducedAtNode) || 0)) { dataPoints.push(null); } else { let st = n.snapshot[sid] || { lv: s.startLv }; dataPoints.push(st.lv); }
                     });
                     datasets.push({ label: s.skill.name, data: dataPoints, borderColor: colors[idx % colors.length], backgroundColor: colors[idx % colors.length] + '33', fill: false, tension: 0.2, spanGaps: true, borderWidth: 2, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: '#0f0f12', pointBorderWidth: 2 });
                 });
@@ -9711,18 +9715,18 @@ document.querySelectorAll('input').forEach(input => {
             _formatDate(d) { if(isNaN(d.getTime())) return "无效日期"; const pad = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '年' + pad(d.getMonth()+1) + '月' + pad(d.getDate()) + '日 ' + pad(d.getHours()) + '时'; },
             _formatTimeSpan(hours) { 
                 if (hours === 0 || hours === Infinity) return hours === Infinity ? '无法达成' : '0分';
-                let hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21; let d = Math.floor(hours / hpd); let h = Math.floor(hours % hpd); let m = Math.round((hours % 1) * 60);
+                let hpd = typeof FIXED_SS_HOURS !== 'undefined' ? Number(FIXED_SS_HOURS) : 21; let d = Math.floor(hours / hpd); let h = Math.floor(hours % hpd); let m = Math.round((hours % 1) * 60);
                 if (m === 60) { h += 1; m = 0; } if (h === hpd) { d += 1; h = 0; }
                 return (d > 0 ? d + '天' : '') + (h > 0 ? h + '时' : (d > 0 ? '0时' : '')) + (m > 0 ? m + '分' : ''); 
             },
             renderDashboard() {
                 const container = document.getElementById('sim_dashboard_container'); if(!container) return;
                 let finalEff = this.state.nodes.length > 0 ? this.state.nodes[this.state.nodes.length-1].eff : this.state.globalEff; 
-                const DAILY_BOOK_LIMIT = 10; const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21;
+                const DAILY_BOOK_LIMIT = 10; const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? Number(FIXED_SS_HOURS) : 21;
                 let html = '<div class="sim-dash-box"><div class="sim-dash-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path></svg> 目标逆向评估</div>';
                 if(this.state.trackedSkills.length === 0) { html += '<div style="color:var(--text-muted); font-size:0.85em; text-align:center;">暂无推演目标，请导入武学。</div>'; } else {
                     this.state.trackedSkills.forEach(s => {
-                        let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; let safeTarget = Math.min(s.targetLv, cap); let canUseItem = ['必杀武学', '石壁武学', '门派精要'].includes(s.skill.cat);
+                        let cap = (typeof getSkillLevelCap === 'function') ? Number(getSkillLevelCap(s.skill)) : 500; let safeTarget = Math.min(Number(s.targetLv), cap); let canUseItem = ['必杀武学', '石壁武学', '门派精要'].includes(s.skill.cat);
                         html += '<div class="sim-dash-item"><div style="color:var(--text-main); font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">';
                         html += `<div style="flex:1; word-wrap:break-word; white-space:normal; line-height:1.4;">${s.skill.name} <span style="color:var(--text-muted); font-size:0.85em; font-weight:normal; white-space:nowrap;">(Lv.${s.startLv} ➔ Lv.${safeTarget})</span></div>`;
                         if(canUseItem) { html += `<label class="toggle-switch" style="font-size:0.85em; font-weight:normal; margin:0; display:flex; align-items:center; gap:4px; cursor:pointer; flex-shrink:0; white-space:nowrap; padding-top:2px;" title="勾选后将展示吃书与自修合并推演的树状拆分数据"><input type="checkbox" onchange="window.simEngine.toggleIncludeZixiu('${s.uid||s.id}')" ${s.includeZixiu ? 'checked' : ''}><span class="slider"></span><span style="color:var(--primary);">加入自修</span></label>`; }
@@ -9730,15 +9734,15 @@ document.querySelectorAll('input').forEach(input => {
                         
                         if (s.skill.cat === '石壁武学') {
                             let reqExp99 = 0, reqExp199 = 0, reqExpOver200 = 0; let limit100 = Math.min(safeTarget, 100); let limit200 = Math.min(safeTarget, 200);
-                            if (s.startLv < limit100) { for(let l = s.startLv; l < limit100; l++) reqExp99 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0)); reqExp99 -= s.startExp; if (reqExp99 < 0) reqExp99 = 0; }
-                            let start100 = Math.max(s.startLv, 100);
-                            if (start100 < limit200) { for(let l = start100; l < limit200; l++) reqExp199 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0)); if (s.startLv >= 100 && s.startLv < 200) reqExp199 -= s.startExp; if (reqExp199 < 0) reqExp199 = 0; }
-                            let start200 = Math.max(s.startLv, 200);
-                            if (start200 < safeTarget) { for(let l = start200; l < safeTarget; l++) reqExpOver200 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0)); if (s.startLv >= 200) reqExpOver200 -= s.startExp; if (reqExpOver200 < 0) reqExpOver200 = 0; }
+                            if (s.startLv < limit100) { for(let l = Number(s.startLv); l < limit100; l++) reqExp99 += Math.round(Math.pow(l+1, Number(s.skill.wgcf))*Number(s.skill.ndxs) + (Number(s.skill.fjsl)||0)); reqExp99 -= Number(s.startExp); if (reqExp99 < 0) reqExp99 = 0; }
+                            let start100 = Math.max(Number(s.startLv), 100);
+                            if (start100 < limit200) { for(let l = start100; l < limit200; l++) reqExp199 += Math.round(Math.pow(l+1, Number(s.skill.wgcf))*Number(s.skill.ndxs) + (Number(s.skill.fjsl)||0)); if (Number(s.startLv) >= 100 && Number(s.startLv) < 200) reqExp199 -= Number(s.startExp); if (reqExp199 < 0) reqExp199 = 0; }
+                            let start200 = Math.max(Number(s.startLv), 200);
+                            if (start200 < safeTarget) { for(let l = start200; l < safeTarget; l++) reqExpOver200 += Math.round(Math.pow(l+1, Number(s.skill.wgcf))*Number(s.skill.ndxs) + (Number(s.skill.fjsl)||0)); if (Number(s.startLv) >= 200) reqExpOver200 -= Number(s.startExp); if (reqExpOver200 < 0) reqExpOver200 = 0; }
                             let totalReqExp = reqExp99 + reqExp199 + reqExpOver200;
                             if(totalReqExp <= 0) { html += '<div style="color:var(--accent-green); font-size:0.85em;">目标已达成。</div>'; } else {
                                 html += `<div style="color:var(--text-muted); font-size:0.85em; margin-bottom:6px;">所需总熟练度: <span style="color:var(--primary); font-weight:bold;">${totalReqExp.toLocaleString()}</span></div>`;
-                                let zRate99 = (3600 / finalEff.speed) * 800; let zRateNormal = (3600 / finalEff.speed) * finalEff.zixiuTick; let qRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; let p2Rate = s.includeZixiu ? (qRate + zRateNormal) : qRate;
+                                let zRate99 = (3600 / Number(finalEff.speed)) * 800; let zRateNormal = (3600 / Number(finalEff.speed)) * Number(finalEff.zixiuTick); let qRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; let p2Rate = s.includeZixiu ? (qRate + zRateNormal) : qRate;
                                 if (reqExp99 > 0 && zRate99 > 0) { html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:4px;">Lv.${Math.min(s.startLv, 99)}➔${limit100} (纯自修): <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(reqExp99 / zRate99)}</span></div>`; }
                                 if (reqExp199 > 0 && p2Rate > 0) {
                                     let h199 = reqExp199 / p2Rate; let books = (h199 * (DAILY_BOOK_LIMIT / hpd)).toFixed(2);
@@ -9752,19 +9756,19 @@ document.querySelectorAll('input').forEach(input => {
                             }
                         } else {
                             let reqExp200 = 0, reqExpOver200 = 0; let limit200 = Math.min(safeTarget, 200);
-                            if(s.startLv < limit200) { for(let l = s.startLv; l < limit200; l++) { reqExp200 += Math.round(Math.pow(l + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0)); } reqExp200 -= s.startExp; if (reqExp200 < 0) reqExp200 = 0; }
-                            let startOver200 = Math.max(s.startLv, 200);
-                            if(startOver200 < safeTarget) { for (let l = startOver200; l < safeTarget; l++) { reqExpOver200 += Math.round(Math.pow(l + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0)); } if (s.startLv >= 200) { reqExpOver200 -= s.startExp; if (reqExpOver200 < 0) reqExpOver200 = 0; } }
+                            if(Number(s.startLv) < limit200) { for(let l = Number(s.startLv); l < limit200; l++) { reqExp200 += Math.round(Math.pow(l + 1, Number(s.skill.wgcf)) * Number(s.skill.ndxs) + (Number(s.skill.fjsl) || 0)); } reqExp200 -= Number(s.startExp); if (reqExp200 < 0) reqExp200 = 0; }
+                            let startOver200 = Math.max(Number(s.startLv), 200);
+                            if(startOver200 < safeTarget) { for (let l = startOver200; l < safeTarget; l++) { reqExpOver200 += Math.round(Math.pow(l + 1, Number(s.skill.wgcf)) * Number(s.skill.ndxs) + (Number(s.skill.fjsl) || 0)); } if (Number(s.startLv) >= 200) { reqExpOver200 -= Number(s.startExp); if (reqExpOver200 < 0) reqExpOver200 = 0; } }
                             let totalReqExp = reqExp200 + reqExpOver200;
 
                             if(totalReqExp <= 0) { html += '<div style="color:var(--accent-green); font-size:0.85em;">目标已达成。</div>'; } else {
                                 html += `<div style="color:var(--text-muted); font-size:0.85em; margin-bottom:6px;">所需总熟练度: <span style="color:var(--primary); font-weight:bold;">${totalReqExp.toLocaleString()}</span></div>`;
-                                let zixiuRatePerHour = (3600 / finalEff.speed) * finalEff.zixiuTick;
+                                let zixiuRatePerHour = (3600 / Number(finalEff.speed)) * Number(finalEff.zixiuTick);
                                 if(canUseItem) {
                                     let itemName = s.skill.cat === '必杀武学' ? '宝典' : '精要本'; let itemRatePerHour = 0;
-                                    if(s.skill.cat === '必杀武学') itemRatePerHour = 2 * (7500 * Math.max(1, finalEff.wx) * (s.bibleMult || 1)); else itemRatePerHour = (DAILY_BOOK_LIMIT / hpd) * 2500000;
+                                    if(s.skill.cat === '必杀武学') itemRatePerHour = 2 * (7500 * Math.max(1, Number(finalEff.wx)) * (Number(s.bibleMult) || 1)); else itemRatePerHour = (DAILY_BOOK_LIMIT / hpd) * 2500000;
                                     let activeRatePerHour = s.includeZixiu ? (itemRatePerHour + zixiuRatePerHour) : itemRatePerHour;
-                                    if(s.startLv >= 200) { html += `<div style="color:var(--danger); font-size:0.85em; margin-bottom:4px;">已超 200 级上限，${itemName}失效</div>`; } 
+                                    if(Number(s.startLv) >= 200) { html += `<div style="color:var(--danger); font-size:0.85em; margin-bottom:4px;">已超 200 级上限，${itemName}失效</div>`; } 
                                     else if(reqExp200 > 0 && activeRatePerHour > 0) {
                                         let hoursTo200 = reqExp200 / activeRatePerHour; let booksUsed = s.skill.cat === '必杀武学' ? (hoursTo200 * 2).toFixed(2) : (hoursTo200 * (DAILY_BOOK_LIMIT / hpd)).toFixed(2);
                                         if(s.includeZixiu) {
@@ -9796,7 +9800,7 @@ document.querySelectorAll('input').forEach(input => {
                 this.state.nodes.forEach((node, i) => {
                     let outerOpts = '<option value="">-- 无操作 --</option>'; let innerOpts = '<option value="">-- 无操作 --</option>'; let parryOpts = '<option value="">-- 无操作 --</option>';
                     this.state.trackedSkills.forEach(s => {
-                        if (node.index < (s.introducedAtNode || 0)) return; 
+                        if (node.index < (Number(s.introducedAtNode) || 0)) return; 
                         let sid = String(s.uid || s.id); let cat = s.skill.cat;
                         if(cat === "绝世外功" || cat === "绝学外功") outerOpts += `<option value="${sid}" ${node.tianwuSelect.outer==sid ? 'selected' : ''}>${s.skill.name}</option>`;
                         if(cat === "绝世内功" || cat === "绝学内功") innerOpts += `<option value="${sid}" ${node.tianwuSelect.inner==sid ? 'selected' : ''}>${s.skill.name}</option>`;
@@ -9805,10 +9809,10 @@ document.querySelectorAll('input').forEach(input => {
                     let actionRows = ''; let readBarBlocks = ''; let zixiuBarBlocks = ''; let allocHtml = '';
                     this.state.trackedSkills.forEach((s, sIdx) => {
                         let sid = String(s.uid || s.id);
-                        if (node.index < (s.introducedAtNode || 0)) return; 
+                        if (node.index < (Number(s.introducedAtNode) || 0)) return; 
                         let sel = node.actions[sid] || ""; let log = node.skillLogs[sid]; let timeStr = log ? log.hours.toFixed(1) : "0.0"; let cColor = colors[sIdx % colors.length];
                         let st = node.snapshot[sid] || {lv: s.startLv, exp: s.startExp}; let tSt = node.trainedSnapshot[sid] || {lv: s.startLv, exp: s.startExp}; 
-                        let isTargetReached = st.lv >= s.targetLv; let targetColor = isTargetReached ? 'var(--accent-green)' : 'var(--text-main)';
+                        let isTargetReached = Number(st.lv) >= Number(s.targetLv); let targetColor = isTargetReached ? 'var(--accent-green)' : 'var(--text-main)';
                         let opts = `<option value="">-- 无操作 --</option><option value="zixiu" ${sel==='zixiu'?'selected':''}>自修</option>`;
                         if(s.skill.cat === '必杀武学') opts += `<option value="read" ${sel==='read'?'selected':''}>读宝典</option><option value="read_zixiu" ${sel==='read_zixiu'?'selected':''}>读宝典+自修</option>`;
                         if(s.skill.cat === '石壁武学') opts += `<option value="qianben" ${sel==='qianben'?'selected':''}>读椠本</option><option value="qianben_zixiu" ${sel==='qianben_zixiu'?'selected':''}>读椠本+自修</option>`;
@@ -9816,25 +9820,25 @@ document.querySelectorAll('input').forEach(input => {
                         let targetBadge = isTargetReached ? `<span style="background:var(--accent-green);color:#000;font-size:0.7em;padding:1px 4px;border-radius:3px;margin-left:6px;vertical-align:middle;white-space:nowrap;">✓ 达成</span>` : '';
                         
                         let formatExp = (lv, exp, skill) => {
-                            let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(skill) : 500; cap = Math.max(cap, s.targetLv || 1);
-                            if (lv >= cap) return `<span style="color:var(--accent-green); font-size:0.85em;">(MAX)</span>`;
-                            let nextLvlCost = Math.round(Math.pow(lv + 1, parseFloat(skill.wgcf)||1) * (parseFloat(skill.ndxs)||1) + (parseFloat(skill.fjsl) || 0));
-                            let p = Math.floor((exp / nextLvlCost) * 100); return `<span style="color:var(--primary); font-size:0.85em;">(${p}%)</span>`;
+                            let cap = (typeof getSkillLevelCap === 'function') ? Number(getSkillLevelCap(skill)) : 500; cap = Math.max(cap, Number(s.targetLv) || 1);
+                            if (Number(lv) >= cap) return `<span style="color:var(--accent-green); font-size:0.85em;">(MAX)</span>`;
+                            let nextLvlCost = Math.round(Math.pow(Number(lv) + 1, Number(skill.wgcf)||1) * (Number(skill.ndxs)||1) + (Number(skill.fjsl) || 0));
+                            let p = Math.floor((Number(exp) / nextLvlCost) * 100); return `<span style="color:var(--primary); font-size:0.85em;">(${p}%)</span>`;
                         };
 
-                        // 绝对 UI 判定，只要 UI 上有书，就强行打出对冲箭头，不再隐去！
-                        let uiFull = node.itemAlloc && node.itemAlloc[sid] ? parseInt(node.itemAlloc[sid].full)||0 : 0;
-                        let uiSec = node.itemAlloc && node.itemAlloc[sid] ? parseInt(node.itemAlloc[sid].secret)||0 : 0;
+                        // 🚀 V51 UI 渲染保护，只要用户敲了数字，强制显式对冲动画
+                        let uiFull = node.itemAlloc && node.itemAlloc[sid] ? Number(node.itemAlloc[sid].full)||0 : 0;
+                        let uiSec = node.itemAlloc && node.itemAlloc[sid] ? Number(node.itemAlloc[sid].secret)||0 : 0;
                         let hasItemAlloc = (uiFull > 0 || uiSec > 0);
 
                         let statusHtml = '';
-                        if (hasItemAlloc && (st.lv !== tSt.lv || Math.floor(st.exp) !== Math.floor(tSt.exp))) {
-                            statusHtml = `<div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;"><span style="font-size:0.95em; font-weight:bold; color:var(--text-main);">Lv.${tSt.lv}</span><span style="font-size:0.85em; color:var(--text-muted);">${Math.floor(tSt.exp).toLocaleString()} exp ${formatExp(tSt.lv, tSt.exp, s.skill)}</span><span style="color:var(--accent-green); font-weight:bold; margin:0 4px;">➔</span><span style="font-size:0.95em; font-weight:bold; color:var(--accent-green);">Lv.${st.lv}</span><span style="font-size:0.85em; color:var(--accent-green);">${Math.floor(st.exp).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span></div>`;
-                        } else { statusHtml = `<div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;"><span style="width:50px; font-size:0.95em; font-weight:bold; color:${targetColor};">Lv.${st.lv}</span><span style="width:145px; font-size:0.85em; color:var(--text-muted); text-align:left;">${Math.floor(st.exp).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span></div>`; }
+                        if (hasItemAlloc && (Number(st.lv) !== Number(tSt.lv) || Math.floor(Number(st.exp)) !== Math.floor(Number(tSt.exp)))) {
+                            statusHtml = `<div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;"><span style="font-size:0.95em; font-weight:bold; color:var(--text-main);">Lv.${tSt.lv}</span><span style="font-size:0.85em; color:var(--text-muted);">${Math.floor(Number(tSt.exp)).toLocaleString()} exp ${formatExp(tSt.lv, tSt.exp, s.skill)}</span><span style="color:var(--accent-green); font-weight:bold; margin:0 4px;">➔</span><span style="font-size:0.95em; font-weight:bold; color:var(--accent-green);">Lv.${st.lv}</span><span style="font-size:0.85em; color:var(--accent-green);">${Math.floor(Number(st.exp)).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span></div>`;
+                        } else { statusHtml = `<div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;"><span style="width:50px; font-size:0.95em; font-weight:bold; color:${targetColor};">Lv.${st.lv}</span><span style="width:145px; font-size:0.85em; color:var(--text-muted); text-align:left;">${Math.floor(Number(st.exp)).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span></div>`; }
 
                         let multHtml = '';
                         if (s.skill.cat === '必杀武学') {
-                            let bMult = s.bibleMult || 1;
+                            let bMult = Number(s.bibleMult) || 1;
                             multHtml = `<select onchange="window.simEngine.updateTrackedSkillMult('${sid}', this.value)" style="width:85px; height:28px; padding:0 5px; background:var(--bg-input); border:1px solid var(--border); color:var(--text-highlight); font-size:0.85em; border-radius:4px; outline:none; cursor:pointer; flex-shrink:0;"><option value="1" ${bMult==1?'selected':''}>1倍 (无)</option><option value="2" ${bMult==2?'selected':''}>2倍 (丹药)</option><option value="2.2" ${bMult==2.2?'selected':''}>2.2倍(精油)</option><option value="3" ${bMult==3?'selected':''}>3倍 (精油)</option></select>`;
                         }
 
@@ -9854,7 +9858,6 @@ document.querySelectorAll('input').forEach(input => {
                             let zPct = (log.zixiuHours / node.hours) * 100; if(zPct > 0) zixiuBarBlocks += `<div style="width:${zPct}%; height:8px; background:${cColor};" title="${s.skill.name} (自修): ${log.zixiuHours.toFixed(1)}h"></div>`;
                         }
                         
-                        // 🚀 V50 终极界面绑定：渲染完全基于内存状态，彻底消灭互相覆盖
                         let nodeItemValFull = node.itemAlloc && node.itemAlloc[sid] && node.itemAlloc[sid].full > 0 ? node.itemAlloc[sid].full : '';
                         let nodeItemValSec = node.itemAlloc && node.itemAlloc[sid] && node.itemAlloc[sid].secret > 0 ? node.itemAlloc[sid].secret : '';
                         allocHtml += `<div class="sim-alloc-row" style="background:rgba(0,0,0,0.1); border-color:var(--border-light); padding:4px 8px; margin:0;">
@@ -9865,7 +9868,7 @@ document.querySelectorAll('input').forEach(input => {
                     });
 
                     let timeBarHtml = `<div style="margin-bottom:15px; background:rgba(0,0,0,0.2); border:1px solid var(--border-light); border-radius:6px; padding:10px;"><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px; color:var(--text-muted);"><span>读书通道 [剩余 ${(node.finalReadLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${readBarBlocks}</div><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-top:8px; margin-bottom:4px; color:var(--text-muted);"><span>自修通道 [剩余 ${(node.finalZixiuLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${zixiuBarBlocks}</div></div>`;
-                    let effSnapHtml = `<div style="background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span style="color:var(--text-highlight); font-size:0.85em; font-weight:bold; display:flex; align-items:center; gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg> 节点属性配置</span><button class="btn-action" style="padding:4px 8px; color:var(--primary); border-color:var(--border-gold); display:flex; align-items:center; justify-content:center;" onclick="window.simEngine.syncNodeEff(${i}, this)" title="同步左侧【武功配置】的等级信息及当前节点的【打点/吃药】快照"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button></div><div class="sim-dash-snapshot" style="margin-bottom:0;"><span style="display:inline-flex;align-items:center;gap:4px;">自修: ${node.eff.zixiuTick.toFixed(2)}</span><span style="display:inline-flex;align-items:center;gap:4px;">悟性: ${node.eff.wx}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤仙丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤仙丹: ${node.eff.tqxd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤金丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤金丹: ${node.eff.tqjd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天命天丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天命天丹: ${node.eff.tmtd}</span>${node.cumulativeHours >= 4000 ? `<span style="color:var(--secondary);display:inline-flex;align-items:center;gap:4px;">格挡: ${node.eff.twParryTick.toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝外: ${node.eff.twUltTick.toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝内: ${node.eff.twUltTick.toFixed(2)}</span>` : ''}</div></div>`;
+                    let effSnapHtml = `<div style="background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span style="color:var(--text-highlight); font-size:0.85em; font-weight:bold; display:flex; align-items:center; gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg> 节点属性配置</span><button class="btn-action" style="padding:4px 8px; color:var(--primary); border-color:var(--border-gold); display:flex; align-items:center; justify-content:center;" onclick="window.simEngine.syncNodeEff(${i}, this)" title="同步左侧【武功配置】的等级信息及当前节点的【打点/吃药】快照"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button></div><div class="sim-dash-snapshot" style="margin-bottom:0;"><span style="display:inline-flex;align-items:center;gap:4px;">自修: ${Number(node.eff.zixiuTick).toFixed(2)}</span><span style="display:inline-flex;align-items:center;gap:4px;">悟性: ${node.eff.wx}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤仙丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤仙丹: ${node.eff.tqxd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤金丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤金丹: ${node.eff.tqjd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天命天丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天命天丹: ${node.eff.tmtd}</span>${node.cumulativeHours >= 4000 ? `<span style="color:var(--secondary);display:inline-flex;align-items:center;gap:4px;">格挡: ${Number(node.eff.twParryTick).toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝外: ${Number(node.eff.twUltTick).toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝内: ${Number(node.eff.twUltTick).toFixed(2)}</span>` : ''}</div></div>`;
 
                     let tianwuHtml = '';
                     if(node.cumulativeHours >= 4000) { 
