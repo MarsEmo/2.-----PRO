@@ -9323,572 +9323,719 @@ document.querySelectorAll('input').forEach(input => {
         if(callback) callback();
     };
 
-    // ================= 游戏进度推演 V45 核心引擎 (等级封印绝对解除+数据无损对齐版) =================
+    // ================= 游戏进度推演 V42 核心引擎 (时间轴绝对坐标产出+提前结算版) =================
     (function(){
         if(window.simEngine && window.simEngine.chartInstance) { try { window.simEngine.chartInstance.destroy(); } catch(e){} }
         window.simEngine = {
-        state: { startDate: new Date(), trackedSkills: [], nodes: [] },
-        chartInstance: null,
-        init() {
-            try {
-                let startEl = document.getElementById('sim_start_date'); let saved = localStorage.getItem('jy_sim_v49_state');
-                if (saved) {
-                    let parsed = JSON.parse(saved); parsed.startDate = new Date(parsed.startDate); this.state = parsed;
-                    if(startEl) startEl.value = new Date(this.state.startDate.getTime() - (this.state.startDate.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
-                } else {
-                    if(startEl) { let now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); startEl.value = now.toISOString().slice(0, 16); this.state.startDate = new Date(startEl.value); }
-                    if (this.state.nodes.length === 0) this.addNode(true);
-                }
-                this.recalculate();
-            } catch(e) {}
-        },
-        clearAll() {
-            if(confirm("确定要清空沙盘的所有推演进度吗？\n\n此操作不可逆！")) {
-                this.state = { startDate: new Date(), trackedSkills: [], nodes: [] }; localStorage.removeItem('jy_sim_v49_state'); this.init();
-            }
-        },
-        snapshotEff() {
-            let eff = { zixiuTick: 0, speed: 5.0, twUltTick: 0, twParryTick: 0, wx: 100, bibleMult: 1, xdSpeed: 1500, tqxd: 0, tqjd: 0, tmtd: 0 };
-            if(typeof getEfficiencyFromData === 'function') { let res = getEfficiencyFromData('DOM'); eff.zixiuTick = res.oneTick; eff.speed = res.speed; }
-            if(typeof getTianwuEfficiency === 'function') { eff.twUltTick = getTianwuEfficiency('DOM', typeof TIANWU_BASE !== 'undefined' ? TIANWU_BASE.JUE : 550); eff.twParryTick = getTianwuEfficiency('DOM', typeof TIANWU_BASE !== 'undefined' ? TIANWU_BASE.PARRY : 400); }
-            let wxEl = document.getElementById('wx'); if(wxEl) eff.wx = parseInt(wxEl.value)||100;
-            let xdEl = document.getElementById('xd_speed'); if(xdEl) eff.xdSpeed = parseInt(xdEl.value)||1500;
-            let tqxdEl = document.getElementById('tqxd'); if(tqxdEl) eff.tqxd = parseInt(tqxdEl.value)||0;
-            let tqjdEl = document.getElementById('tqjd'); if(tqjdEl) eff.tqjd = parseInt(tqjdEl.value)||0;
-            let tmtdEl = document.getElementById('tmtd'); if(tmtdEl) eff.tmtd = parseInt(tmtdEl.value)||0;
-            return eff;
-        },
-        syncNodeEff(nodeIndex, btnEl) {
-            if(btnEl) { let icon = btnEl.querySelector('svg'); if(icon) { icon.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'; icon.style.transform = 'rotate(360deg)'; } }
-            if(this.state.nodes[nodeIndex]) {
-                this.state.nodes[nodeIndex].eff = this.snapshotEff();
+            state: { startDate: new Date(), trackedSkills: [], nodes: [] },
+            chartInstance: null,
+            init() {
                 try {
-                    const skillVal = document.getElementById('skillSelect').value;
-                    if (skillVal) {
-                        const skill = JSON.parse(skillVal); const curLv = parseInt(document.getElementById('dqdj').value) || 1; const tarLv = parseInt(document.getElementById('mbdj').value) || curLv;
-                        const expInput = document.getElementById('rev_current_exp'); const exp = expInput ? (parseInt(expInput.value) || 0) : 0;
-                        let tSkill = this.state.trackedSkills.find(s => String(s.uid || s.id) === String(skill.id));
-                        if (tSkill) { tSkill.startLv = curLv; tSkill.targetLv = tarLv; tSkill.startExp = exp; }
-                    }
-                } catch(e) {}
-                setTimeout(() => { this.recalculate(); }, 400); 
-            }
-        },
-        importFromMainPanel() {
-            try {
-                const skillVal = document.getElementById('skillSelect').value;
-                if(!skillVal) return alert("请先在左侧【武功配置】选择武学！");
-                const skill = JSON.parse(skillVal); const curLv = parseInt(document.getElementById('dqdj').value) || 1; const tarLv = parseInt(document.getElementById('mbdj').value) || curLv;
-                const expInput = document.getElementById('rev_current_exp'); const exp = expInput ? (parseInt(expInput.value) || 0) : 0;
-                if(this.state.trackedSkills.some(s => String(s.uid || s.id) === String(skill.id))) return alert("该武学已在推演列表中！");
-                const targetNodeIdx = parseInt(document.getElementById('sim_target_node_sel').value) || 0;
-                this.state.trackedSkills.push({ id: skill.id, uid: skill.id, skill: skill, startLv: curLv, targetLv: tarLv, startExp: exp, includeZixiu: false, bibleMult: 1, introducedAtNode: targetNodeIdx });
-                this.recalculate();
-            } catch(e) {}
-        },
-        removeTrackedSkill(id) { this.state.trackedSkills = this.state.trackedSkills.filter(s => String(s.uid || s.id) !== String(id)); this.recalculate(); },
-        toggleIncludeZixiu(id) { let s = this.state.trackedSkills.find(x => String(x.uid || x.id) === String(id)); if(s) { s.includeZixiu = !s.includeZixiu; this.recalculate(); } },
-        updateTrackedSkillMult(id, val) { let s = this.state.trackedSkills.find(x => String(x.uid || x.id) === String(id)); if(s) { s.bibleMult = parseFloat(val); this.recalculate(); } },
-        updateNodeAction(nodeIndex, skillId, actionType) { if(this.state.nodes[nodeIndex]) { this.state.nodes[nodeIndex].actions[skillId] = actionType; this.recalculate(); } },
-        moveTrackedSkill(id, direction) {
-            let idx = this.state.trackedSkills.findIndex(s => String(s.uid || s.id) === String(id)); if (idx < 0) return;
-            if (direction === -1 && idx > 0) { let temp = this.state.trackedSkills[idx]; this.state.trackedSkills[idx] = this.state.trackedSkills[idx-1]; this.state.trackedSkills[idx-1] = temp; this.recalculate(); } 
-            else if (direction === 1 && idx < this.state.trackedSkills.length - 1) { let temp = this.state.trackedSkills[idx]; this.state.trackedSkills[idx] = this.state.trackedSkills[idx+1]; this.state.trackedSkills[idx+1] = temp; this.recalculate(); }
-        },
-        addNode(isInit = false) {
-            const nodeIndex = this.state.nodes.length;
-            let newEff = nodeIndex > 0 ? JSON.parse(JSON.stringify(this.state.nodes[nodeIndex-1].eff)) : this.snapshotEff();
-            this.state.nodes.push({ index: nodeIndex, hours: 500, cumulativeHours: 0, actions: {}, tianwuSelect: { outer: "", inner: "", parry: "" }, itemAlloc: {}, skillLogs: {}, usedHours: 0, eff: newEff });
-            if (!isInit) this.recalculate();
-        },
-        removeNode(index) { 
-            this.state.nodes.splice(index, 1); this.state.nodes.forEach((n, i) => n.index = i); 
-            this.state.trackedSkills.forEach(s => { if(s.introducedAtNode > index) s.introducedAtNode = Math.max(0, s.introducedAtNode - 1); });
-            this.recalculate(); 
-        },
-        // 🚀 防静默崩溃绑定器
-        updateItemAlloc(nodeIndex, skillId, type, val) {
-            if(this.state.nodes[nodeIndex]) {
-                if(!this.state.nodes[nodeIndex].itemAlloc) this.state.nodes[nodeIndex].itemAlloc = {};
-                if(!this.state.nodes[nodeIndex].itemAlloc[skillId]) this.state.nodes[nodeIndex].itemAlloc[skillId] = { full: 0, secret: 0 };
-                this.state.nodes[nodeIndex].itemAlloc[skillId][type] = val === '' ? 0 : Math.max(0, parseInt(val) || 0);
-                this.recalculate();
-            }
-        },
-
-        recalculate() {
-            try {
-                const startEl = document.getElementById('sim_start_date');
-                this.state.startDate = startEl && startEl.value ? new Date(startEl.value) : new Date();
-                if(isNaN(this.state.startDate.getTime())) this.state.startDate = new Date();
-                let currentTime = this.state.startDate.getTime(); 
-                
-                let globalAccumulatedHours = 0; 
-                let inventory = { fullBook: 0, secretBook: 0 }; let accFull = 0, accSecret = 0; 
-                let runningStatus = {}; this.state.trackedSkills.forEach(s => { runningStatus[String(s.uid || s.id)] = { lv: s.startLv, exp: s.startExp }; });
-                
-                const DAILY_BOOK_LIMIT = 10; const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21;
-                let bookFullExp = 2500000; let bookSecretExp = 400000;
-                if (typeof EXP_CONSTANTS !== 'undefined') {
-                    bookFullExp = parseInt(EXP_CONSTANTS.BOOK_FULL) || 2500000;
-                    bookSecretExp = parseInt(EXP_CONSTANTS.BOOK_SECRET) || 400000;
-                }
-
-                this.state.nodes.forEach(node => {
-                    let nodeHours = parseFloat(node.hours) || 0;
-                    const nodeStartTime = new Date(currentTime); globalAccumulatedHours += nodeHours; currentTime += nodeHours * 60 * 60 * 1000; const nodeEndTime = new Date(currentTime);
-                    node.cumulativeHours = globalAccumulatedHours;
-                    
-                    let currentAccDays = Math.ceil(node.cumulativeHours / 24);
-                    let generatedFull = currentAccDays - accFull; let generatedSecret = (currentAccDays * 2) - accSecret;
-                    accFull = currentAccDays; accSecret = currentAccDays * 2;
-                    inventory.fullBook += generatedFull; inventory.secretBook += generatedSecret;
-                    
-                    let eff = node.eff; 
-                    
-                    // 无缝同步背包扣除
-                    this.state.trackedSkills.forEach(s => {
-                        let sid = String(s.uid || s.id);
-                        if (node.index < (s.introducedAtNode || 0)) return; 
-                        if(!node.itemAlloc) node.itemAlloc = {};
-                        if(!node.itemAlloc[sid]) node.itemAlloc[sid] = { full: 0, secret: 0 };
-                        
-                        let wantFull = parseInt(node.itemAlloc[sid].full) || 0;
-                        let wantSecret = parseInt(node.itemAlloc[sid].secret) || 0;
-
-                        wantFull = Math.min(wantFull, Math.floor(inventory.fullBook));
-                        wantSecret = Math.min(wantSecret, Math.floor(inventory.secretBook));
-
-                        node.itemAlloc[sid].full = wantFull; node.itemAlloc[sid].secret = wantSecret;
-                        inventory.fullBook -= wantFull; inventory.secretBook -= wantSecret;
-                    });
-                    
-                    node.inventorySnapshot = { full: Math.floor(inventory.fullBook), secret: Math.floor(inventory.secretBook) };
-
-                    // ============ 平行宇宙 1：无道具纯挂机参照组 ============
-                    let baseStatus = JSON.parse(JSON.stringify(runningStatus));
-                    let bZixiuLeft = nodeHours; let bReadLeft = nodeHours;
-                    while (bZixiuLeft > 0.0001 || bReadLeft > 0.0001) {
-                        let aReadSkill = null; let aZixiuSkills = [];
-                        this.state.trackedSkills.forEach(s => {
-                            let sid = String(s.uid || s.id);
-                            if (node.index < (s.introducedAtNode || 0)) return;
-                            let aType = node.actions[sid] || ""; if (aType === '--无操作--' || aType === '') return;
-                            let st = baseStatus[sid];
-                            let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1); 
-                            let safeTarget = Math.min(s.targetLv || 1, cap);
-                            let isReadingOp = aType.includes('read') || aType.includes('qianben') || aType.includes('jingyao');
-                            if (isReadingOp && !aType.includes('zixiu')) safeTarget = Math.min(safeTarget, 200);
-                            if (st.lv >= safeTarget) return;
-
-                            let wantsZixiu = aType.includes('zixiu'); let wantsRead = isReadingOp; let isShibi = s.skill.cat === "石壁武学";
-                            if (isShibi && st.lv < 100 && wantsRead) { wantsZixiu = true; wantsRead = false; }
-                            let zLimit = Infinity;
-                            if(s.skill.cat === "绝世外功" || s.skill.cat === "绝学外功") zLimit = 400; else if(s.skill.cat === "绝世内功" || s.skill.cat === "绝学内功") zLimit = 200; else if(s.skill.cat === "格挡武功") zLimit = 300;
-                            if (st.lv >= zLimit && wantsZixiu && !isShibi) wantsZixiu = false;
-                            if (st.lv >= 200 && wantsRead) wantsRead = false;
-                            if (wantsZixiu && bZixiuLeft > 0) aZixiuSkills.push(s);
-                            if (wantsRead && bReadLeft > 0 && !aReadSkill) aReadSkill = s;
-                        });
-                        
-                        if (!aReadSkill && aZixiuSkills.length === 0) break;
-                        let zixiuCount = aZixiuSkills.length; let stepTime = Math.max(bZixiuLeft, bReadLeft); let rates = {};
-                        let skillsToProcess = new Set([...aZixiuSkills, ...(aReadSkill ? [aReadSkill] : [])]);
-
-                        skillsToProcess.forEach(s => {
-                            let sid = String(s.uid || s.id); let st = baseStatus[sid]; let aType = node.actions[sid]; let isShibi = s.skill.cat === "石壁武学";
-                            let zRate = 0;
-                            if (aZixiuSkills.includes(s)) { let activeTick = eff.zixiuTick; if (isShibi && st.lv < 100) activeTick = 800; zRate = ((3600 / eff.speed) * activeTick) / zixiuCount; }
-                            let rRate = 0;
-                            if (aReadSkill === s) {
-                                if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, eff.wx) * (s.bibleMult || 1); rRate = 2 * expPerBook; } 
-                                else if (aType.includes('qianben') || aType.includes('jingyao')) { rRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; }
-                            }
-                            rates[sid] = zRate + rRate;
-                            if (rates[sid] > 0) {
-                                let lvlCost = Math.round(Math.pow(st.lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
-                                let expNeeded = Math.max(0, lvlCost - st.exp); let t = expNeeded / rates[sid];
-                                let maxChanTime = Infinity;
-                                if (aZixiuSkills.includes(s)) maxChanTime = Math.min(maxChanTime, bZixiuLeft);
-                                if (aReadSkill === s) maxChanTime = Math.min(maxChanTime, bReadLeft);
-                                if (t < stepTime) stepTime = Math.min(t, maxChanTime); else stepTime = Math.min(stepTime, maxChanTime);
-                            }
-                        });
-
-                        if (stepTime <= 0.0001) stepTime = 0.0001;
-                        if (aZixiuSkills.length > 0) bZixiuLeft -= stepTime; if (aReadSkill !== null) bReadLeft -= stepTime;
-
-                        skillsToProcess.forEach(s => {
-                            let sid = String(s.uid || s.id);
-                            if (rates[sid] > 0) {
-                                baseStatus[sid].exp += stepTime * rates[sid];
-                                let lvlCost = Math.round(Math.pow(baseStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
-                                while (baseStatus[sid].exp >= lvlCost - 0.5) {
-                                    baseStatus[sid].exp -= lvlCost; baseStatus[sid].lv++;
-                                    let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1);
-                                    if(baseStatus[sid].lv >= cap) { baseStatus[sid].exp = 0; break; }
-                                    lvlCost = Math.round(Math.pow(baseStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
-                                }
-                            }
-                        });
-                    }
-                    node.trainedSnapshot = JSON.parse(JSON.stringify(baseStatus)); 
-
-                    // ============ 平行宇宙 2：主宇宙 (核心暴力灌注器) ============
-                    this.state.trackedSkills.forEach(s => {
-                        try {
-                            let sid = String(s.uid || s.id);
-                            if (node.index < (s.introducedAtNode || 0)) return;
-                            
-                            // 🚀 终极破壁修复：强制双重读取，就算 DOM 同步慢了一拍，也强行从内存读取！
-                            let fInput = document.getElementById('sim_f_' + node.index + '_' + sid);
-                            let sInput = document.getElementById('sim_s_' + node.index + '_' + sid);
-                            
-                            let wFull = 0, wSec = 0;
-                            if (fInput && fInput.value !== '') wFull = Math.max(0, parseInt(fInput.value) || 0);
-                            else if (node.itemAlloc && node.itemAlloc[sid]) wFull = Math.max(0, parseInt(node.itemAlloc[sid].full) || 0);
-
-                            if (sInput && sInput.value !== '') wSec = Math.max(0, parseInt(sInput.value) || 0);
-                            else if (node.itemAlloc && node.itemAlloc[sid]) wSec = Math.max(0, parseInt(node.itemAlloc[sid].secret) || 0);
-
-                            let itemExp = (wFull * bookFullExp) + (wSec * bookSecretExp); 
-
-                            // 只要有一丁点经验，无视任何防御直接写进对象内存！
-                            if (itemExp > 0) {
-                                let st = runningStatus[sid];
-                                st.exp += itemExp;
-                                
-                                let wgcf = parseFloat(s.skill.wgcf) || 1.0;
-                                let ndxs = parseFloat(s.skill.ndxs) || 1.0;
-                                let fjsl = parseFloat(s.skill.fjsl) || 0.0;
-                                
-                                // 突破一切封印的暴力连跳（绝对不依赖外部函数）
-                                for (let jump = 0; jump < 3000; jump++) {
-                                    let cost = Math.round(Math.pow(st.lv + 1, wgcf) * ndxs + fjsl);
-                                    if (cost <= 0) break;
-                                    if (st.exp >= cost - 0.5) {
-                                        st.exp -= cost;
-                                        st.lv++;
-                                    } else {
-                                        break; // 直到把书的经验全部吃干抹净才停下
-                                    }
-                                }
-                            }
-                        } catch(err) { console.warn("灌注器异常拦截:", err); }
-                    });
-
-                    let zixiuHoursLeft = nodeHours; let readHoursLeft = nodeHours;
-                    let zixiuHoursUsedMap = {}; let readHoursUsedMap = {}; let expGainedMap = {}; node.skillLogs = {};
-                    this.state.trackedSkills.forEach(s => {
-                        let sid = String(s.uid || s.id);
-                        zixiuHoursUsedMap[sid] = 0; readHoursUsedMap[sid] = 0; expGainedMap[sid] = 0;
-                        node.skillLogs[sid] = { action: node.actions[sid] || "", zixiuHours: 0, readHours: 0, hours: 0, expGained: 0 };
-                    });
-
-                    while (zixiuHoursLeft > 0.0001 || readHoursLeft > 0.0001) {
-                        let activeReadSkill = null; let activeZixiuSkills = [];
-                        this.state.trackedSkills.forEach(s => {
-                            let sid = String(s.uid || s.id);
-                            if (node.index < (s.introducedAtNode || 0)) return;
-                            let aType = node.actions[sid] || ""; if (aType === '--无操作--' || aType === '') return;
-                            let st = runningStatus[sid];
-                            let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1); 
-                            let safeTarget = Math.min(s.targetLv || 1, cap);
-                            let isReadingOp = aType.includes('read') || aType.includes('qianben') || aType.includes('jingyao');
-                            if (isReadingOp && !aType.includes('zixiu')) safeTarget = Math.min(safeTarget, 200);
-
-                            if (st.lv >= safeTarget) return;
-
-                            let wantsZixiu = aType.includes('zixiu'); let wantsRead = isReadingOp; let isShibi = s.skill.cat === "石壁武学";
-                            if (isShibi && st.lv < 100 && wantsRead) { wantsZixiu = true; wantsRead = false; }
-                            let zLimit = Infinity;
-                            if(s.skill.cat === "绝世外功" || s.skill.cat === "绝学外功") zLimit = 400; else if(s.skill.cat === "绝世内功" || s.skill.cat === "绝学内功") zLimit = 200; else if(s.skill.cat === "格挡武功") zLimit = 300;
-                            if (st.lv >= zLimit && wantsZixiu && !isShibi) wantsZixiu = false;
-                            if (st.lv >= 200 && wantsRead) wantsRead = false;
-                            if (wantsZixiu && zixiuHoursLeft > 0) activeZixiuSkills.push(s);
-                            if (wantsRead && readHoursLeft > 0 && !activeReadSkill) activeReadSkill = s;
-                        });
-
-                        if (!activeReadSkill && activeZixiuSkills.length === 0) break;
-                        let zixiuCount = activeZixiuSkills.length; let stepTime = Math.max(zixiuHoursLeft, readHoursLeft); let rates = {};
-                        let skillsToProcess = new Set([...activeZixiuSkills, ...(activeReadSkill ? [activeReadSkill] : [])]);
-
-                        skillsToProcess.forEach(s => {
-                            let sid = String(s.uid || s.id); let st = runningStatus[sid]; let aType = node.actions[sid]; let isShibi = s.skill.cat === "石壁武学";
-                            let zRate = 0;
-                            if (activeZixiuSkills.includes(s)) { let activeTick = eff.zixiuTick; if (isShibi && st.lv < 100) activeTick = 800; zRate = ((3600 / eff.speed) * activeTick) / zixiuCount; }
-                            let rRate = 0;
-                            if (activeReadSkill === s) {
-                                if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, eff.wx) * (s.bibleMult || 1); rRate = 2 * expPerBook; } 
-                                else if (aType.includes('qianben') || aType.includes('jingyao')) { rRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; }
-                            }
-                            rates[sid] = zRate + rRate;
-                            if (rates[sid] > 0) {
-                                let lvlCost = Math.round(Math.pow(st.lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
-                                let expNeeded = Math.max(0, lvlCost - st.exp); let t = expNeeded / rates[sid];
-                                let maxChanTime = Infinity;
-                                if (activeZixiuSkills.includes(s)) maxChanTime = Math.min(maxChanTime, zixiuHoursLeft);
-                                if (activeReadSkill === s) maxChanTime = Math.min(maxChanTime, readHoursLeft);
-                                if (t < stepTime) stepTime = Math.min(t, maxChanTime); else stepTime = Math.min(stepTime, maxChanTime);
-                            }
-                        });
-
-                        if (stepTime <= 0.0001) stepTime = 0.0001;
-                        if (activeZixiuSkills.length > 0) zixiuHoursLeft -= stepTime; if (activeReadSkill !== null) readHoursLeft -= stepTime;
-
-                        skillsToProcess.forEach(s => {
-                            let sid = String(s.uid || s.id);
-                            if (rates[sid] > 0) {
-                                let expGain = stepTime * rates[sid]; runningStatus[sid].exp += expGain; expGainedMap[sid] += expGain;
-                                if (activeZixiuSkills.includes(s)) zixiuHoursUsedMap[sid] += stepTime;
-                                if (activeReadSkill === s) readHoursUsedMap[sid] += stepTime;
-                                let lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
-                                while (runningStatus[sid].exp >= lvlCost - 0.5) {
-                                    runningStatus[sid].exp -= lvlCost; runningStatus[sid].lv++;
-                                    let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; cap = Math.max(cap, s.targetLv || 1); 
-                                    if(runningStatus[sid].lv >= cap) { runningStatus[sid].exp = 0; break; }
-                                    lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, parseFloat(s.skill.wgcf)||1) * (parseFloat(s.skill.ndxs)||1) + (parseFloat(s.skill.fjsl) || 0));
-                                }
-                            }
-                        });
-                    }
-
-                    let maxZixiuUsedInNode = 0;
-                    this.state.trackedSkills.forEach(s => {
-                        let sid = String(s.uid || s.id);
-                        if (node.index < (s.introducedAtNode || 0)) return;
-                        let zUsed = zixiuHoursUsedMap[sid] || 0; let rUsed = readHoursUsedMap[sid] || 0;
-                        if (zUsed > maxZixiuUsedInNode) maxZixiuUsedInNode = zUsed;
-                        let aType = node.actions[sid] || "";
-                        if (aType && aType !== '--无操作--') { node.skillLogs[sid] = { action: aType, zixiuHours: zUsed, readHours: rUsed, hours: Math.max(zUsed, rUsed), expGained: expGainedMap[sid] || 0 }; }
-                    });
-
-                    node.usedHours = Math.max(nodeHours - zixiuHoursLeft, maxZixiuUsedInNode);
-                    if(node.cumulativeHours >= 4000) {
-                        let twDailyUlt = Math.floor(eff.twUltTick * (typeof TICKS_PER_DAY_TW !== 'undefined' ? TICKS_PER_DAY_TW : 1260));
-                        let twDailyParry = Math.floor(eff.twParryTick * (typeof TICKS_PER_DAY_TW !== 'undefined' ? TICKS_PER_DAY_TW : 1260));
-                        const processTianwu = (selectedId, hourlyExp) => {
-                            if(selectedId) {
-                                let tSkill = this.state.trackedSkills.find(x => String(x.uid || x.id) === String(selectedId));
-                                if(tSkill && node.index >= (tSkill.introducedAtNode || 0)) {
-                                    let sid = String(tSkill.uid || tSkill.id);
-                                    let unlockLv = (typeof TIANWU_UNLOCK_LEVELS !== 'undefined' && TIANWU_UNLOCK_LEVELS[tSkill.skill.name]) ? TIANWU_UNLOCK_LEVELS[tSkill.skill.name] : 1;
-                                    if(runningStatus[sid].lv >= unlockLv) {
-                                        runningStatus[sid].exp += nodeHours * hourlyExp;
-                                        while(true) {
-                                            let lvlCost = Math.round(Math.pow(runningStatus[sid].lv + 1, parseFloat(tSkill.skill.wgcf)||1) * (parseFloat(tSkill.skill.ndxs)||1) + (parseFloat(tSkill.skill.fjsl) || 0));
-                                            if(runningStatus[sid].exp >= lvlCost - 0.5) { runningStatus[sid].exp -= lvlCost; runningStatus[sid].lv++; } else { break; }
-                                        }
-                                    }
-                                }
-                            }
-                        };
-                        processTianwu(node.tianwuSelect.outer, twDailyUlt/24); processTianwu(node.tianwuSelect.inner, twDailyUlt/24); processTianwu(node.tianwuSelect.parry, twDailyParry/24);
-                    }
-                    node.snapshot = JSON.parse(JSON.stringify(runningStatus)); node.finalZixiuLeft = zixiuHoursLeft; node.finalReadLeft = readHoursLeft;
-                    node.startTimeStr = this._formatDate(nodeStartTime); node.endTimeStr = this._formatDate(nodeEndTime);
-                });
-                
-                localStorage.setItem('jy_sim_v49_state', JSON.stringify(this.state));
-                this.renderDOM(); this.renderDashboard();
-                const chartWrapper = document.getElementById('sim_chart_wrapper');
-                if(chartWrapper && chartWrapper.style.display !== 'none') this.drawChart();
-            } catch(e) { console.error("Recalculate 致命错误:", e); }
-        },
-
-        drawChart() {
-            if (typeof Chart === 'undefined') return;
-            if (this.state.trackedSkills.length === 0 || this.state.nodes.length === 0) return;
-            const wrapper = document.getElementById('sim_chart_wrapper'); const canvas = document.getElementById('simTimelineChart');
-            if (!wrapper || !canvas) return;
-            canvas.style.minHeight = '350px'; wrapper.style.display = 'block';
-            const ctx = canvas.getContext('2d'); if (this.chartInstance) this.chartInstance.destroy();
-            let labels = ['0h']; this.state.nodes.forEach(n => labels.push(`${n.cumulativeHours}h`));
-            let datasets = []; const colors = ['#d4af37', '#00bcd4', '#4caf50', '#ff4444', '#9c27b0', '#ff9800', '#00e676', '#ff4081'];
-            this.state.trackedSkills.forEach((s, idx) => {
-                let dataPoints = [s.startLv]; 
-                this.state.nodes.forEach(n => { 
-                    let sid = String(s.uid || s.id);
-                    if (n.index < (s.introducedAtNode || 0)) { dataPoints.push(null); } else { let st = n.snapshot[sid] || { lv: s.startLv }; dataPoints.push(st.lv); }
-                });
-                datasets.push({ label: s.skill.name, data: dataPoints, borderColor: colors[idx % colors.length], backgroundColor: colors[idx % colors.length] + '33', fill: false, tension: 0.2, spanGaps: true, borderWidth: 2, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: '#0f0f12', pointBorderWidth: 2 });
-            });
-            const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'; const tickColor = isDark ? '#888' : '#666';
-            try {
-                this.chartInstance = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'top', labels: { color: isDark ? '#e0e0e0' : '#333', font: { size: 13, weight: 'bold' } } }, tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', titleColor: '#d4af37', bodyColor: '#fff', borderColor: 'rgba(212,175,55,0.5)', borderWidth: 1, callbacks: { label: function(context) { return ` ${context.dataset.label}: Lv.${context.parsed.y}`; } } } }, scales: { x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } } }, y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } }, title: { display: true, text: '武学等级 (Lv)', color: tickColor } } } } });
-                setTimeout(() => wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-            } catch (err) {}
-        },
-        _formatDate(d) { if(isNaN(d.getTime())) return "无效日期"; const pad = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '年' + pad(d.getMonth()+1) + '月' + pad(d.getDate()) + '日 ' + pad(d.getHours()) + '时'; },
-        _formatTimeSpan(hours) { 
-            if (hours === 0 || hours === Infinity) return hours === Infinity ? '无法达成' : '0分';
-            let hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21; let d = Math.floor(hours / hpd); let h = Math.floor(hours % hpd); let m = Math.round((hours % 1) * 60);
-            if (m === 60) { h += 1; m = 0; } if (h === hpd) { d += 1; h = 0; }
-            return (d > 0 ? d + '天' : '') + (h > 0 ? h + '时' : (d > 0 ? '0时' : '')) + (m > 0 ? m + '分' : ''); 
-        },
-        renderDashboard() {
-            const container = document.getElementById('sim_dashboard_container'); if(!container) return;
-            let finalEff = this.state.nodes.length > 0 ? this.state.nodes[this.state.nodes.length-1].eff : this.state.globalEff; 
-            const DAILY_BOOK_LIMIT = 10; const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21;
-            let html = '<div class="sim-dash-box"><div class="sim-dash-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path></svg> 目标逆向评估</div>';
-            if(this.state.trackedSkills.length === 0) { html += '<div style="color:var(--text-muted); font-size:0.85em; text-align:center;">暂无推演目标，请导入武学。</div>'; } else {
-                this.state.trackedSkills.forEach(s => {
-                    let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; let safeTarget = Math.min(s.targetLv, cap); let canUseItem = ['必杀武学', '石壁武学', '门派精要'].includes(s.skill.cat);
-                    html += '<div class="sim-dash-item"><div style="color:var(--text-main); font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">';
-                    html += `<div style="flex:1; word-wrap:break-word; white-space:normal; line-height:1.4;">${s.skill.name} <span style="color:var(--text-muted); font-size:0.85em; font-weight:normal; white-space:nowrap;">(Lv.${s.startLv} ➔ Lv.${safeTarget})</span></div>`;
-                    if(canUseItem) { html += `<label class="toggle-switch" style="font-size:0.85em; font-weight:normal; margin:0; display:flex; align-items:center; gap:4px; cursor:pointer; flex-shrink:0; white-space:nowrap; padding-top:2px;" title="勾选后将展示吃书与自修合并推演的树状拆分数据"><input type="checkbox" onchange="window.simEngine.toggleIncludeZixiu('${s.uid||s.id}')" ${s.includeZixiu ? 'checked' : ''}><span class="slider"></span><span style="color:var(--primary);">加入自修</span></label>`; }
-                    html += '</div>';
-                    
-                    if (s.skill.cat === '石壁武学') {
-                        let reqExp99 = 0, reqExp199 = 0, reqExpOver200 = 0; let limit100 = Math.min(safeTarget, 100); let limit200 = Math.min(safeTarget, 200);
-                        if (s.startLv < limit100) { for(let l = s.startLv; l < limit100; l++) reqExp99 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0)); reqExp99 -= s.startExp; if (reqExp99 < 0) reqExp99 = 0; }
-                        let start100 = Math.max(s.startLv, 100);
-                        if (start100 < limit200) { for(let l = start100; l < limit200; l++) reqExp199 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0)); if (s.startLv >= 100 && s.startLv < 200) reqExp199 -= s.startExp; if (reqExp199 < 0) reqExp199 = 0; }
-                        let start200 = Math.max(s.startLv, 200);
-                        if (start200 < safeTarget) { for(let l = start200; l < safeTarget; l++) reqExpOver200 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0)); if (s.startLv >= 200) reqExpOver200 -= s.startExp; if (reqExpOver200 < 0) reqExpOver200 = 0; }
-                        let totalReqExp = reqExp99 + reqExp199 + reqExpOver200;
-                        if(totalReqExp <= 0) { html += '<div style="color:var(--accent-green); font-size:0.85em;">目标已达成。</div>'; } else {
-                            html += `<div style="color:var(--text-muted); font-size:0.85em; margin-bottom:6px;">所需总熟练度: <span style="color:var(--primary); font-weight:bold;">${totalReqExp.toLocaleString()}</span></div>`;
-                            let zRate99 = (3600 / finalEff.speed) * 800; let zRateNormal = (3600 / finalEff.speed) * finalEff.zixiuTick; let qRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; let p2Rate = s.includeZixiu ? (qRate + zRateNormal) : qRate;
-                            if (reqExp99 > 0 && zRate99 > 0) { html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:4px;">Lv.${Math.min(s.startLv, 99)}➔${limit100} (纯自修): <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(reqExp99 / zRate99)}</span></div>`; }
-                            if (reqExp199 > 0 && p2Rate > 0) {
-                                let h199 = reqExp199 / p2Rate; let books = (h199 * (DAILY_BOOK_LIMIT / hpd)).toFixed(2);
-                                if(s.includeZixiu) { html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:2px;">Lv.${start100}➔${limit200} (并行): 约 <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(h199)}</span></div><div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:2px;">├ 消耗椠本: <span style="color:var(--primary);">${books} 本</span> <span style="font-size:0.9em;">(贡献: ${Math.floor(h199 * qRate).toLocaleString()} exp)</span></div><div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:4px;">└ 同步自修: <span style="font-size:0.9em;">(贡献: ${Math.floor(h199 * zRateNormal).toLocaleString()} exp)</span></div>`; } 
-                                else { html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:4px;">Lv.${start100}➔${limit200} (读椠本): <span style="color:var(--accent-green); font-weight:bold;">${books} 本</span> (约 ${this._formatTimeSpan(h199)})</div>`; }
-                            }
-                            if (reqExpOver200 > 0) {
-                                let fullBooks = Math.ceil(reqExpOver200 / 2500000); html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:4px;">Lv.${start200}➔${safeTarget} (全书): <span style="color:var(--primary); font-weight:bold;">${fullBooks} 本</span> <span style="font-size:0.9em;">(${reqExpOver200.toLocaleString()} exp)</span></div>`;
-                                if(zRateNormal > 0) html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:2px;">(或) 纯自修耗时: <span style="color:var(--primary);">${this._formatTimeSpan(reqExpOver200 / zRateNormal)}</span></div>`; 
-                            }
+                    let startEl = document.getElementById('sim_start_date');
+                    let saved = localStorage.getItem('jy_sim_v42_state');
+                    if (saved) {
+                        let parsed = JSON.parse(saved);
+                        parsed.startDate = new Date(parsed.startDate);
+                        this.state = parsed;
+                        if(startEl) {
+                            let now = this.state.startDate;
+                            startEl.value = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
                         }
                     } else {
-                        let reqExp200 = 0, reqExpOver200 = 0; let limit200 = Math.min(safeTarget, 200);
-                        if(s.startLv < limit200) { for(let l = s.startLv; l < limit200; l++) { reqExp200 += Math.round(Math.pow(l + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0)); } reqExp200 -= s.startExp; if (reqExp200 < 0) reqExp200 = 0; }
-                        let startOver200 = Math.max(s.startLv, 200);
-                        if(startOver200 < safeTarget) { for (let l = startOver200; l < safeTarget; l++) { reqExpOver200 += Math.round(Math.pow(l + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0)); } if (s.startLv >= 200) { reqExpOver200 -= s.startExp; if (reqExpOver200 < 0) reqExpOver200 = 0; } }
-                        let totalReqExp = reqExp200 + reqExpOver200;
+                        if(startEl) {
+                            let now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                            startEl.value = now.toISOString().slice(0, 16); this.state.startDate = new Date(startEl.value);
+                        }
+                        if (this.state.nodes.length === 0) this.addNode(true);
+                    }
+                    this.recalculate();
+                } catch(e) {}
+            },
+            clearAll() {
+                if(confirm("确定要清空沙盘的所有推演进度吗？\n\n此操作不可逆！")) {
+                    this.state = { startDate: new Date(), trackedSkills: [], nodes: [] };
+                    localStorage.removeItem('jy_sim_v42_state');
+                    this.init();
+                }
+            },
+            snapshotEff() {
+                let eff = { zixiuTick: 0, speed: 5.0, twUltTick: 0, twParryTick: 0, wx: 100, bibleMult: 1, xdSpeed: 1500, tqxd: 0, tqjd: 0, tmtd: 0 };
+                if(typeof getEfficiencyFromData === 'function') { let res = getEfficiencyFromData('DOM'); eff.zixiuTick = res.oneTick; eff.speed = res.speed; }
+                if(typeof getTianwuEfficiency === 'function') { eff.twUltTick = getTianwuEfficiency('DOM', typeof TIANWU_BASE !== 'undefined' ? TIANWU_BASE.JUE : 550); eff.twParryTick = getTianwuEfficiency('DOM', typeof TIANWU_BASE !== 'undefined' ? TIANWU_BASE.PARRY : 400); }
+                let wxEl = document.getElementById('wx'); if(wxEl) eff.wx = parseInt(wxEl.value)||100;
+                let xdEl = document.getElementById('xd_speed'); if(xdEl) eff.xdSpeed = parseInt(xdEl.value)||1500;
+                let tqxdEl = document.getElementById('tqxd'); if(tqxdEl) eff.tqxd = parseInt(tqxdEl.value)||0;
+                let tqjdEl = document.getElementById('tqjd'); if(tqjdEl) eff.tqjd = parseInt(tqjdEl.value)||0;
+                let tmtdEl = document.getElementById('tmtd'); if(tmtdEl) eff.tmtd = parseInt(tmtdEl.value)||0;
+                return eff;
+            },
+            syncNodeEff(nodeIndex, btnEl) {
+                if(btnEl) {
+                    let icon = btnEl.querySelector('svg');
+                    if(icon) {
+                        icon.style.transition = 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+                        icon.style.transform = 'rotate(360deg)';
+                    }
+                }
+                if(this.state.nodes[nodeIndex]) {
+                    this.state.nodes[nodeIndex].eff = this.snapshotEff();
+                    try {
+                        const skillVal = document.getElementById('skillSelect').value;
+                        if (skillVal) {
+                            const skill = JSON.parse(skillVal);
+                            const curLv = parseInt(document.getElementById('dqdj').value) || 1;
+                            const tarLv = parseInt(document.getElementById('mbdj').value) || curLv;
+                            const expInput = document.getElementById('rev_current_exp');
+                            const exp = expInput ? (parseInt(expInput.value) || 0) : 0;
+                            
+                            let tSkill = this.state.trackedSkills.find(s => String(s.id) === String(skill.id));
+                            if (tSkill) { tSkill.startLv = curLv; tSkill.targetLv = tarLv; tSkill.startExp = exp; }
+                        }
+                    } catch(e) {}
+                    setTimeout(() => { this.recalculate(); }, 400); 
+                }
+            },
+            importFromMainPanel() {
+                try {
+                    const skillVal = document.getElementById('skillSelect').value;
+                    if(!skillVal) return alert("请先在左侧【武功配置】选择武学！");
+                    const skill = JSON.parse(skillVal); const curLv = parseInt(document.getElementById('dqdj').value) || 1; const tarLv = parseInt(document.getElementById('mbdj').value) || curLv;
+                    const expInput = document.getElementById('rev_current_exp'); const exp = expInput ? (parseInt(expInput.value) || 0) : 0;
+                    
+                    if(this.state.trackedSkills.some(s => s.id === skill.id)) return alert("该武学已在推演列表中！");
+                    const targetNodeIdx = parseInt(document.getElementById('sim_target_node_sel').value) || 0;
+                    this.state.trackedSkills.push({ id: skill.id, skill: skill, startLv: curLv, targetLv: tarLv, startExp: exp, includeZixiu: false, bibleMult: 1, introducedAtNode: targetNodeIdx });
+                    this.recalculate();
+                } catch(e) {}
+            },
+            removeTrackedSkill(id) { this.state.trackedSkills = this.state.trackedSkills.filter(s => String(s.id) !== String(id)); this.recalculate(); },
+            toggleIncludeZixiu(id) { let s = this.state.trackedSkills.find(x => String(x.id) === String(id)); if(s) { s.includeZixiu = !s.includeZixiu; this.recalculate(); } },
+            updateTrackedSkillMult(id, val) {
+                let s = this.state.trackedSkills.find(x => String(x.id) === String(id));
+                if(s) { s.bibleMult = parseFloat(val); this.recalculate(); }
+            },
+            updateNodeAction(nodeIndex, skillId, actionType) { 
+                if(this.state.nodes[nodeIndex]) { 
+                    this.state.nodes[nodeIndex].actions[skillId] = actionType; 
+                    this.recalculate(); 
+                } 
+            },
+            moveTrackedSkill(id, direction) {
+                let idx = this.state.trackedSkills.findIndex(s => String(s.id) === String(id));
+                if (idx < 0) return;
+                if (direction === -1 && idx > 0) {
+                    let temp = this.state.trackedSkills[idx];
+                    this.state.trackedSkills[idx] = this.state.trackedSkills[idx-1];
+                    this.state.trackedSkills[idx-1] = temp;
+                    this.recalculate();
+                } else if (direction === 1 && idx < this.state.trackedSkills.length - 1) {
+                    let temp = this.state.trackedSkills[idx];
+                    this.state.trackedSkills[idx] = this.state.trackedSkills[idx+1];
+                    this.state.trackedSkills[idx+1] = temp;
+                    this.recalculate();
+                }
+            },
+            addNode(isInit = false) {
+                const nodeIndex = this.state.nodes.length;
+                let newEff = nodeIndex > 0 ? JSON.parse(JSON.stringify(this.state.nodes[nodeIndex-1].eff)) : this.snapshotEff();
+                this.state.nodes.push({ index: nodeIndex, hours: 500, cumulativeHours: 0, actions: {}, tianwuSelect: { outer: "", inner: "", parry: "" }, itemAlloc: {}, skillLogs: {}, usedHours: 0, eff: newEff });
+                if (!isInit) this.recalculate();
+            },
+            removeNode(index) { 
+                this.state.nodes.splice(index, 1); 
+                this.state.nodes.forEach((n, i) => n.index = i); 
+                this.state.trackedSkills.forEach(s => { if(s.introducedAtNode > index) s.introducedAtNode = Math.max(0, s.introducedAtNode - 1); });
+                this.recalculate(); 
+            },
+            recalculate() {
+                try {
+                    const startEl = document.getElementById('sim_start_date');
+                    this.state.startDate = startEl && startEl.value ? new Date(startEl.value) : new Date();
+                    if(isNaN(this.state.startDate.getTime())) this.state.startDate = new Date();
+                    let currentTime = this.state.startDate.getTime(); 
+                    
+                    let globalAccumulatedHours = 0; 
+                    let inventory = { fullBook: 0, secretBook: 0 };
+                    let accFull = 0, accSecret = 0; 
+                    
+                    let runningStatus = {}; 
+                    this.state.trackedSkills.forEach(s => { runningStatus[s.id] = { lv: s.startLv, exp: s.startExp }; });
+                    
+                    const DAILY_BOOK_LIMIT = 10; 
+                    const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21;
+                    const bookFullExp = (typeof EXP_CONSTANTS !== 'undefined' && EXP_CONSTANTS.BOOK_FULL) ? EXP_CONSTANTS.BOOK_FULL : 2500000;
+                    const bookSecretExp = (typeof EXP_CONSTANTS !== 'undefined' && EXP_CONSTANTS.BOOK_SECRET) ? EXP_CONSTANTS.BOOK_SECRET : 400000;
 
-                        if(totalReqExp <= 0) { html += '<div style="color:var(--accent-green); font-size:0.85em;">目标已达成。</div>'; } else {
-                            html += `<div style="color:var(--text-muted); font-size:0.85em; margin-bottom:6px;">所需总熟练度: <span style="color:var(--primary); font-weight:bold;">${totalReqExp.toLocaleString()}</span></div>`;
-                            let zixiuRatePerHour = (3600 / finalEff.speed) * finalEff.zixiuTick;
-                            if(canUseItem) {
-                                let itemName = s.skill.cat === '必杀武学' ? '宝典' : '精要本'; let itemRatePerHour = 0;
-                                if(s.skill.cat === '必杀武学') itemRatePerHour = 2 * (7500 * Math.max(1, finalEff.wx) * (s.bibleMult || 1)); else itemRatePerHour = (DAILY_BOOK_LIMIT / hpd) * 2500000;
-                                let activeRatePerHour = s.includeZixiu ? (itemRatePerHour + zixiuRatePerHour) : itemRatePerHour;
-                                if(s.startLv >= 200) { html += `<div style="color:var(--danger); font-size:0.85em; margin-bottom:4px;">已超 200 级上限，${itemName}失效</div>`; } 
-                                else if(reqExp200 > 0 && activeRatePerHour > 0) {
-                                    let hoursTo200 = reqExp200 / activeRatePerHour; let booksUsed = s.skill.cat === '必杀武学' ? (hoursTo200 * 2).toFixed(2) : (hoursTo200 * (DAILY_BOOK_LIMIT / hpd)).toFixed(2);
+                    this.state.nodes.forEach(node => {
+                        const nodeStartTime = new Date(currentTime); globalAccumulatedHours += node.hours; currentTime += node.hours * 60 * 60 * 1000; const nodeEndTime = new Date(currentTime);
+                        node.cumulativeHours = globalAccumulatedHours;
+                        
+                        // 🚀 核心修复：1. 基于绝对时间轴的产出算法，绝对不会出现 83 本的情况！
+                        let currentAccDays = Math.ceil(node.cumulativeHours / 24);
+                        let generatedFull = currentAccDays - accFull;
+                        let generatedSecret = (currentAccDays * 2) - accSecret;
+                        accFull = currentAccDays; 
+                        accSecret = currentAccDays * 2;
+                        
+                        // 🚀 核心修复：2. 先将产出物放进背包，再去结算玩家的分配！
+                        inventory.fullBook += generatedFull;
+                        inventory.secretBook += generatedSecret;
+                        
+                        let eff = node.eff; 
+                        
+                        // 3. 读取玩家在此节点的道具分配并从背包扣除
+                        this.state.trackedSkills.forEach(s => {
+                            if (node.index < s.introducedAtNode) return; 
+                            let fInput = document.getElementById('sim_f_' + node.index + '_' + s.id); let sInput = document.getElementById('sim_s_' + node.index + '_' + s.id);
+                            if(!node.itemAlloc[s.id]) node.itemAlloc[s.id] = { full: 0, secret: 0 };
+                            
+                            let wantFull = fInput ? (parseInt(fInput.value) || 0) : (node.itemAlloc[s.id].full || 0);
+                            let wantSecret = sInput ? (parseInt(sInput.value) || 0) : (node.itemAlloc[s.id].secret || 0);
+
+                            if (wantFull > inventory.fullBook) wantFull = Math.max(0, Math.floor(inventory.fullBook));
+                            if (wantSecret > inventory.secretBook) wantSecret = Math.max(0, Math.floor(inventory.secretBook));
+
+                            node.itemAlloc[s.id].full = wantFull;
+                            node.itemAlloc[s.id].secret = wantSecret;
+
+                            inventory.fullBook -= wantFull;
+                            inventory.secretBook -= wantSecret;
+                        });
+                        
+                        // 保存完美的流水线结余数据（用于UI底部渲染展示）
+                        node.inventorySnapshot = { full: Math.floor(inventory.fullBook), secret: Math.floor(inventory.secretBook) };
+
+                        // 🚀🚀 第 1 宇宙：纯挂机参照组（无道具直接模拟时间流逝）
+                        let baseStatus = JSON.parse(JSON.stringify(runningStatus));
+                        let bZixiuLeft = node.hours; let bReadLeft = node.hours;
+                        while (bZixiuLeft > 0.0001 || bReadLeft > 0.0001) {
+                            let aReadSkill = null; let aZixiuSkills = [];
+                            this.state.trackedSkills.forEach(s => {
+                                if (node.index < s.introducedAtNode) return;
+                                let aType = node.actions[s.id] || "";
+                                if (aType === '--无操作--' || aType === '') return;
+                                let st = baseStatus[s.id];
+                                let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500;
+                                let safeTarget = Math.min(s.targetLv, cap);
+                                let isReadingOp = aType.includes('read') || aType.includes('qianben') || aType.includes('jingyao');
+                                if (isReadingOp && !aType.includes('zixiu')) safeTarget = Math.min(safeTarget, 200);
+                                if (st.lv >= safeTarget) return;
+
+                                let wantsZixiu = aType.includes('zixiu'); let wantsRead = isReadingOp; let isShibi = s.skill.cat === "石壁武学";
+                                if (isShibi && st.lv < 100 && wantsRead) { wantsZixiu = true; wantsRead = false; }
+                                let zLimit = Infinity;
+                                if(s.skill.cat === "绝世外功" || s.skill.cat === "绝学外功") zLimit = 400; else if(s.skill.cat === "绝世内功" || s.skill.cat === "绝学内功") zLimit = 200; else if(s.skill.cat === "格挡武功") zLimit = 300;
+                                if (st.lv >= zLimit && wantsZixiu && !isShibi) wantsZixiu = false;
+                                if (st.lv >= 200 && wantsRead) wantsRead = false;
+                                if (wantsZixiu && bZixiuLeft > 0) aZixiuSkills.push(s);
+                                if (wantsRead && bReadLeft > 0 && !aReadSkill) aReadSkill = s;
+                            });
+                            
+                            if (!aReadSkill && aZixiuSkills.length === 0) break;
+
+                            let zixiuCount = aZixiuSkills.length;
+                            let stepTime = Math.max(bZixiuLeft, bReadLeft);
+                            let rates = {};
+                            let skillsToProcess = new Set([...aZixiuSkills, ...(aReadSkill ? [aReadSkill] : [])]);
+
+                            skillsToProcess.forEach(s => {
+                                let st = baseStatus[s.id]; let aType = node.actions[s.id]; let isShibi = s.skill.cat === "石壁武学";
+                                let zRate = 0;
+                                if (aZixiuSkills.includes(s)) {
+                                    let activeTick = eff.zixiuTick;
+                                    if (isShibi && st.lv < 100) activeTick = 800;
+                                    zRate = ((3600 / eff.speed) * activeTick) / zixiuCount; 
+                                }
+                                let rRate = 0;
+                                if (aReadSkill === s) {
+                                    if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, eff.wx) * (s.bibleMult || 1); rRate = 2 * expPerBook; } 
+                                    else if (aType.includes('qianben') || aType.includes('jingyao')) { rRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; }
+                                }
+                                rates[s.id] = zRate + rRate;
+                                if (rates[s.id] > 0) {
+                                    let lvlCost = Math.round(Math.pow(st.lv + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0));
+                                    let expNeeded = Math.max(0, lvlCost - st.exp);
+                                    let t = expNeeded / rates[s.id];
+                                    let maxChanTime = Infinity;
+                                    if (aZixiuSkills.includes(s)) maxChanTime = Math.min(maxChanTime, bZixiuLeft);
+                                    if (aReadSkill === s) maxChanTime = Math.min(maxChanTime, bReadLeft);
+                                    if (t < stepTime) stepTime = Math.min(t, maxChanTime); else stepTime = Math.min(stepTime, maxChanTime);
+                                }
+                            });
+
+                            if (stepTime <= 0.0001) stepTime = 0.0001;
+                            if (aZixiuSkills.length > 0) bZixiuLeft -= stepTime;
+                            if (aReadSkill !== null) bReadLeft -= stepTime;
+
+                            skillsToProcess.forEach(s => {
+                                if (rates[s.id] > 0) {
+                                    baseStatus[s.id].exp += stepTime * rates[s.id];
+                                    let lvlCost = Math.round(Math.pow(baseStatus[s.id].lv + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0));
+                                    while (baseStatus[s.id].exp >= lvlCost - 0.5) {
+                                        baseStatus[s.id].exp -= lvlCost; baseStatus[s.id].lv++;
+                                        let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500;
+                                        if(baseStatus[s.id].lv >= cap) { baseStatus[s.id].exp = 0; break; }
+                                        lvlCost = Math.round(Math.pow(baseStatus[s.id].lv + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0));
+                                    }
+                                }
+                            });
+                        }
+                        node.trainedSnapshot = JSON.parse(JSON.stringify(baseStatus)); 
+
+                        // 🚀🚀 第 2 宇宙：主宇宙（喂食已确认安全的道具并挂机时间）
+                        this.state.trackedSkills.forEach(s => {
+                            if (node.index < s.introducedAtNode) return;
+                            let costFull = node.itemAlloc[s.id].full; 
+                            let costSecret = node.itemAlloc[s.id].secret;
+                            let itemExp = (costFull * bookFullExp) + (costSecret * bookSecretExp); 
+                            if(itemExp > 0) {
+                                this._addExpToSkill(s, runningStatus[s.id], itemExp, 'item');
+                            }
+                        });
+
+                        let zixiuHoursLeft = node.hours; let readHoursLeft = node.hours;
+                        let zixiuHoursUsedMap = {}; let readHoursUsedMap = {}; let expGainedMap = {};
+                        node.skillLogs = {};
+                        this.state.trackedSkills.forEach(s => {
+                            zixiuHoursUsedMap[s.id] = 0; readHoursUsedMap[s.id] = 0; expGainedMap[s.id] = 0;
+                            node.skillLogs[s.id] = { action: node.actions[s.id] || "", zixiuHours: 0, readHours: 0, hours: 0, expGained: 0 };
+                        });
+
+                        while (zixiuHoursLeft > 0.0001 || readHoursLeft > 0.0001) {
+                            let activeReadSkill = null; let activeZixiuSkills = [];
+
+                            this.state.trackedSkills.forEach(s => {
+                                if (node.index < s.introducedAtNode) return;
+                                let aType = node.actions[s.id] || "";
+                                if (aType === '--无操作--' || aType === '') return;
+
+                                let st = runningStatus[s.id];
+                                let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500;
+                                let safeTarget = Math.min(s.targetLv, cap);
+                                let isReadingOp = aType.includes('read') || aType.includes('qianben') || aType.includes('jingyao');
+                                if (isReadingOp && !aType.includes('zixiu')) safeTarget = Math.min(safeTarget, 200);
+
+                                if (st.lv >= safeTarget) return;
+
+                                let wantsZixiu = aType.includes('zixiu'); let wantsRead = isReadingOp; let isShibi = s.skill.cat === "石壁武学";
+                                if (isShibi && st.lv < 100 && wantsRead) { wantsZixiu = true; wantsRead = false; }
+                                let zLimit = Infinity;
+                                if(s.skill.cat === "绝世外功" || s.skill.cat === "绝学外功") zLimit = 400; else if(s.skill.cat === "绝世内功" || s.skill.cat === "绝学内功") zLimit = 200; else if(s.skill.cat === "格挡武功") zLimit = 300;
+                                if (st.lv >= zLimit && wantsZixiu && !isShibi) wantsZixiu = false;
+                                if (st.lv >= 200 && wantsRead) wantsRead = false;
+
+                                if (wantsZixiu && zixiuHoursLeft > 0) activeZixiuSkills.push(s);
+                                if (wantsRead && readHoursLeft > 0 && !activeReadSkill) activeReadSkill = s;
+                            });
+
+                            if (!activeReadSkill && activeZixiuSkills.length === 0) break;
+
+                            let zixiuCount = activeZixiuSkills.length;
+                            let stepTime = Math.max(zixiuHoursLeft, readHoursLeft);
+                            let rates = {};
+                            let skillsToProcess = new Set([...activeZixiuSkills, ...(activeReadSkill ? [activeReadSkill] : [])]);
+
+                            skillsToProcess.forEach(s => {
+                                let st = runningStatus[s.id]; let aType = node.actions[s.id]; let isShibi = s.skill.cat === "石壁武学";
+                                let zRate = 0;
+                                if (activeZixiuSkills.includes(s)) {
+                                    let activeTick = eff.zixiuTick;
+                                    if (isShibi && st.lv < 100) activeTick = 800;
+                                    zRate = ((3600 / eff.speed) * activeTick) / zixiuCount; 
+                                }
+                                let rRate = 0;
+                                if (activeReadSkill === s) {
+                                    if (aType.includes('read')) { let expPerBook = 7500 * Math.max(1, eff.wx) * (s.bibleMult || 1); rRate = 2 * expPerBook; } 
+                                    else if (aType.includes('qianben') || aType.includes('jingyao')) { rRate = (DAILY_BOOK_LIMIT / hpd) * 2500000; }
+                                }
+                                rates[s.id] = zRate + rRate;
+
+                                if (rates[s.id] > 0) {
+                                    let lvlCost = Math.round(Math.pow(st.lv + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0));
+                                    let expNeeded = Math.max(0, lvlCost - st.exp);
+                                    let t = expNeeded / rates[s.id];
+                                    let maxChanTime = Infinity;
+                                    if (activeZixiuSkills.includes(s)) maxChanTime = Math.min(maxChanTime, zixiuHoursLeft);
+                                    if (activeReadSkill === s) maxChanTime = Math.min(maxChanTime, readHoursLeft);
+                                    if (t < stepTime) stepTime = Math.min(t, maxChanTime); else stepTime = Math.min(stepTime, maxChanTime);
+                                }
+                            });
+
+                            if (stepTime <= 0.0001) stepTime = 0.0001;
+                            let stepZixiuUsed = activeZixiuSkills.length > 0; let stepReadUsed = activeReadSkill !== null;
+                            if (stepZixiuUsed) zixiuHoursLeft -= stepTime;
+                            if (stepReadUsed) readHoursLeft -= stepTime;
+
+                            skillsToProcess.forEach(s => {
+                                if (rates[s.id] > 0) {
+                                    let expGain = stepTime * rates[s.id];
+                                    runningStatus[s.id].exp += expGain; expGainedMap[s.id] += expGain;
+                                    if (activeZixiuSkills.includes(s)) zixiuHoursUsedMap[s.id] += stepTime;
+                                    if (activeReadSkill === s) readHoursUsedMap[s.id] += stepTime;
+
+                                    let lvlCost = Math.round(Math.pow(runningStatus[s.id].lv + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0));
+                                    while (runningStatus[s.id].exp >= lvlCost - 0.5) {
+                                        runningStatus[s.id].exp -= lvlCost; runningStatus[s.id].lv++;
+                                        let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500;
+                                        if(runningStatus[s.id].lv >= cap) { runningStatus[s.id].exp = 0; break; }
+                                        lvlCost = Math.round(Math.pow(runningStatus[s.id].lv + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0));
+                                    }
+                                }
+                            });
+                        }
+
+                        let maxZixiuUsedInNode = 0;
+                        this.state.trackedSkills.forEach(s => {
+                            if (node.index < s.introducedAtNode) return;
+                            let zUsed = zixiuHoursUsedMap[s.id] || 0; let rUsed = readHoursUsedMap[s.id] || 0;
+                            if (zUsed > maxZixiuUsedInNode) maxZixiuUsedInNode = zUsed;
+                            let aType = node.actions[s.id] || "";
+                            if (aType && aType !== '--无操作--') {
+                                node.skillLogs[s.id] = { action: aType, zixiuHours: zUsed, readHours: rUsed, hours: Math.max(zUsed, rUsed), expGained: expGainedMap[s.id] || 0 };
+                            }
+                        });
+
+                        node.usedHours = Math.max(node.hours - zixiuHoursLeft, maxZixiuUsedInNode);
+                        
+                        if(node.cumulativeHours >= 4000) {
+                            let twDailyUlt = Math.floor(eff.twUltTick * (typeof TICKS_PER_DAY_TW !== 'undefined' ? TICKS_PER_DAY_TW : 1260));
+                            let twDailyParry = Math.floor(eff.twParryTick * (typeof TICKS_PER_DAY_TW !== 'undefined' ? TICKS_PER_DAY_TW : 1260));
+                            const processTianwu = (selectedId, hourlyExp) => {
+                                if(selectedId) {
+                                    let tSkill = this.state.trackedSkills.find(x => String(x.id) === String(selectedId));
+                                    if(tSkill && node.index >= tSkill.introducedAtNode) {
+                                        let unlockLv = (typeof TIANWU_UNLOCK_LEVELS !== 'undefined' && TIANWU_UNLOCK_LEVELS[tSkill.skill.name]) ? TIANWU_UNLOCK_LEVELS[tSkill.skill.name] : 1;
+                                        if(runningStatus[tSkill.id].lv >= unlockLv) this._addExpToSkill(tSkill, runningStatus[tSkill.id], node.hours * hourlyExp, 'tianwu');
+                                    }
+                                }
+                            };
+                            processTianwu(node.tianwuSelect.outer, twDailyUlt/24); 
+                            processTianwu(node.tianwuSelect.inner, twDailyUlt/24); 
+                            processTianwu(node.tianwuSelect.parry, twDailyParry/24);
+                        }
+                        node.snapshot = JSON.parse(JSON.stringify(runningStatus)); 
+                        node.finalZixiuLeft = zixiuHoursLeft; node.finalReadLeft = readHoursLeft;
+                        node.startTimeStr = this._formatDate(nodeStartTime); node.endTimeStr = this._formatDate(nodeEndTime);
+                    });
+                    
+                    localStorage.setItem('jy_sim_v42_state', JSON.stringify(this.state));
+                    
+                    this.renderDOM(); this.renderDashboard();
+                    const chartWrapper = document.getElementById('sim_chart_wrapper');
+                    if(chartWrapper && chartWrapper.style.display !== 'none') this.drawChart();
+                } catch(e) { console.error(e); }
+            },
+            drawChart() {
+                if (typeof Chart === 'undefined') return;
+                if (this.state.trackedSkills.length === 0 || this.state.nodes.length === 0) return;
+                const wrapper = document.getElementById('sim_chart_wrapper'); const canvas = document.getElementById('simTimelineChart');
+                if (!wrapper || !canvas) return;
+                canvas.style.minHeight = '350px'; wrapper.style.display = 'block';
+                const ctx = canvas.getContext('2d'); if (this.chartInstance) this.chartInstance.destroy();
+                let labels = ['0h']; this.state.nodes.forEach(n => labels.push(`${n.cumulativeHours}h`));
+                let datasets = []; const colors = ['#d4af37', '#00bcd4', '#4caf50', '#ff4444', '#9c27b0', '#ff9800', '#00e676', '#ff4081'];
+                this.state.trackedSkills.forEach((s, idx) => {
+                    let dataPoints = [s.startLv]; 
+                    this.state.nodes.forEach(n => { 
+                        if (n.index < s.introducedAtNode) { dataPoints.push(null); } 
+                        else { let st = n.snapshot[s.id] || { lv: s.startLv }; dataPoints.push(st.lv); }
+                    });
+                    datasets.push({ label: s.skill.name, data: dataPoints, borderColor: colors[idx % colors.length], backgroundColor: colors[idx % colors.length] + '33', fill: false, tension: 0.2, spanGaps: true, borderWidth: 2, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: '#0f0f12', pointBorderWidth: 2 });
+                });
+                const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+                const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'; const tickColor = isDark ? '#888' : '#666';
+                try {
+                    this.chartInstance = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'top', labels: { color: isDark ? '#e0e0e0' : '#333', font: { size: 13, weight: 'bold' } } }, tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', titleColor: '#d4af37', bodyColor: '#fff', borderColor: 'rgba(212,175,55,0.5)', borderWidth: 1, callbacks: { label: function(context) { return ` ${context.dataset.label}: Lv.${context.parsed.y}`; } } } }, scales: { x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } } }, y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } }, title: { display: true, text: '武学等级 (Lv)', color: tickColor } } } } });
+                    setTimeout(() => wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+                } catch (err) {}
+            },
+            _addExpToSkill(tSkill, status, addedExp, actionType) {
+                let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(tSkill.skill) : 500; let cat = tSkill.skill.cat;
+                if(actionType === 'zixiu') {
+                    if (cat === "绝世外功" || cat === "绝学外功") cap = Math.min(cap, 400); else if (cat === "绝世内功" || cat === "绝学内功") cap = Math.min(cap, 200); else if (cat === "格挡武功") cap = Math.min(cap, 300);
+                } else if(actionType === 'qianben' || actionType === 'jingyao' || actionType === 'read') { 
+                    cap = Math.min(cap, 200); 
+                }
+                if(status.lv >= cap) return; 
+                status.exp += addedExp;
+                while(status.lv < cap) {
+                    let lvlCost = Math.round(Math.pow(status.lv + 1, tSkill.skill.wgcf) * tSkill.skill.ndxs + (parseFloat(tSkill.skill.fjsl) || 0));
+                    if(status.exp >= lvlCost - 0.5) { status.exp -= lvlCost; status.lv++; } else { break; }
+                }
+                if(status.lv >= cap) { status.lv = cap; status.exp = 0; }
+            },
+            _formatDate(d) { if(isNaN(d.getTime())) return "无效日期"; const pad = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '年' + pad(d.getMonth()+1) + '月' + pad(d.getDate()) + '日 ' + pad(d.getHours()) + '时'; },
+            
+            _formatTimeSpan(hours) { 
+                if (hours === 0 || hours === Infinity) return hours === Infinity ? '无法达成' : '0分';
+                let hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21;
+                let d = Math.floor(hours / hpd); 
+                let h = Math.floor(hours % hpd); 
+                let m = Math.round((hours % 1) * 60);
+                if (m === 60) { h += 1; m = 0; }
+                if (h === hpd) { d += 1; h = 0; }
+                return (d > 0 ? d + '天' : '') + (h > 0 ? h + '时' : (d > 0 ? '0时' : '')) + (m > 0 ? m + '分' : ''); 
+            },
+            renderDashboard() {
+                const container = document.getElementById('sim_dashboard_container'); if(!container) return;
+                let finalEff = this.state.nodes.length > 0 ? this.state.nodes[this.state.nodes.length-1].eff : this.state.globalEff; 
+                const DAILY_BOOK_LIMIT = 10; 
+                const hpd = typeof FIXED_SS_HOURS !== 'undefined' ? FIXED_SS_HOURS : 21;
+
+                let html = '<div class="sim-dash-box">';
+                html += '<div class="sim-dash-title"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path></svg> 目标逆向评估</div>';
+                if(this.state.trackedSkills.length === 0) { html += '<div style="color:var(--text-muted); font-size:0.85em; text-align:center;">暂无推演目标，请导入武学。</div>'; } else {
+                    this.state.trackedSkills.forEach(s => {
+                        let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(s.skill) : 500; let safeTarget = Math.min(s.targetLv, cap); let canUseItem = ['必杀武学', '石壁武学', '门派精要'].includes(s.skill.cat);
+                        
+                        html += '<div class="sim-dash-item"><div style="color:var(--text-main); font-weight:bold; margin-bottom:8px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">';
+                        html += `<div style="flex:1; word-wrap:break-word; white-space:normal; line-height:1.4;">${s.skill.name} <span style="color:var(--text-muted); font-size:0.85em; font-weight:normal; white-space:nowrap;">(Lv.${s.startLv} ➔ Lv.${safeTarget})</span></div>`;
+                        if(canUseItem) { 
+                            html += `<label class="toggle-switch" style="font-size:0.85em; font-weight:normal; margin:0; display:flex; align-items:center; gap:4px; cursor:pointer; flex-shrink:0; white-space:nowrap; padding-top:2px;" title="勾选后将展示吃书与自修合并推演的树状拆分数据">
+                                        <input type="checkbox" onchange="window.simEngine.toggleIncludeZixiu('${s.id}')" ${s.includeZixiu ? 'checked' : ''}>
+                                        <span class="slider"></span><span style="color:var(--primary);">加入自修</span>
+                                     </label>`; 
+                        }
+                        html += '</div>';
+                        
+                        if (s.skill.cat === '石壁武学') {
+                            let reqExp99 = 0, reqExp199 = 0, reqExpOver200 = 0;
+                            let limit100 = Math.min(safeTarget, 100);
+                            let limit200 = Math.min(safeTarget, 200);
+
+                            if (s.startLv < limit100) {
+                                for(let l = s.startLv; l < limit100; l++) reqExp99 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0));
+                                reqExp99 -= s.startExp; if (reqExp99 < 0) reqExp99 = 0;
+                            }
+                            let start100 = Math.max(s.startLv, 100);
+                            if (start100 < limit200) {
+                                for(let l = start100; l < limit200; l++) reqExp199 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0));
+                                if (s.startLv >= 100 && s.startLv < 200) reqExp199 -= s.startExp;
+                                if (reqExp199 < 0) reqExp199 = 0;
+                            }
+                            let start200 = Math.max(s.startLv, 200);
+                            if (start200 < safeTarget) {
+                                for(let l = start200; l < safeTarget; l++) reqExpOver200 += Math.round(Math.pow(l+1, s.skill.wgcf)*s.skill.ndxs + (parseFloat(s.skill.fjsl)||0));
+                                if (s.startLv >= 200) reqExpOver200 -= s.startExp;
+                                if (reqExpOver200 < 0) reqExpOver200 = 0;
+                            }
+
+                            let totalReqExp = reqExp99 + reqExp199 + reqExpOver200;
+                            if(totalReqExp <= 0) { html += '<div style="color:var(--accent-green); font-size:0.85em;">目标已达成。</div>'; } else {
+                                html += `<div style="color:var(--text-muted); font-size:0.85em; margin-bottom:6px;">所需总熟练度: <span style="color:var(--primary); font-weight:bold;">${totalReqExp.toLocaleString()}</span></div>`;
+                                
+                                let zRate99 = (3600 / finalEff.speed) * 800;
+                                let zRateNormal = (3600 / finalEff.speed) * finalEff.zixiuTick;
+                                let qRate = (DAILY_BOOK_LIMIT / hpd) * 2500000;
+                                let p2Rate = s.includeZixiu ? (qRate + zRateNormal) : qRate;
+
+                                if (reqExp99 > 0 && zRate99 > 0) {
+                                    html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:4px;">Lv.${Math.min(s.startLv, 99)}➔${limit100} (纯自修): <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(reqExp99 / zRate99)}</span></div>`;
+                                }
+                                if (reqExp199 > 0 && p2Rate > 0) {
+                                    let h199 = reqExp199 / p2Rate;
+                                    let books = (h199 * (DAILY_BOOK_LIMIT / hpd)).toFixed(2);
                                     if(s.includeZixiu) {
-                                        html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:2px;">Lv.${s.startLv}➔${limit200} (并行): 约 <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(hoursTo200)}</span></div>`;
-                                        html += `<div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:2px;">├ 消耗${itemName}: <span style="color:var(--primary);">${booksUsed} 本</span> <span style="font-size:0.9em;">(贡献: ${Math.floor(hoursTo200 * itemRatePerHour).toLocaleString()} exp)</span></div>`;
-                                        html += `<div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:4px;">└ 同步自修: <span style="font-size:0.9em;">(贡献: ${Math.floor(hoursTo200 * zixiuRatePerHour).toLocaleString()} exp)</span></div>`;
-                                    } else { html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:4px;">Lv.${s.startLv}➔${limit200} (读${itemName}): <span style="color:var(--accent-green); font-weight:bold;">${booksUsed} 本</span> (约 ${this._formatTimeSpan(hoursTo200)})${safeTarget > 200 ? ' <span style="color:var(--danger); font-size:0.85em;">(仅算至200)</span>' : ''}</div>`; }
+                                        let expB = h199 * qRate; let expZ = h199 * zRateNormal;
+                                        html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:2px;">Lv.${start100}➔${limit200} (并行推演): 约 <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(h199)}</span></div>`;
+                                        html += `<div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:2px;">├ 消耗椠本: <span style="color:var(--primary);">${books} 本</span> <span style="font-size:0.9em;">(贡献: ${Math.floor(expB).toLocaleString()} exp)</span></div>`;
+                                        html += `<div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:4px;">└ 同步自修: <span style="font-size:0.9em;">(贡献: ${Math.floor(expZ).toLocaleString()} exp)</span></div>`;
+                                    } else {
+                                        html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:4px;">Lv.${start100}➔${limit200} (读椠本): <span style="color:var(--accent-green); font-weight:bold;">${books} 本</span> (约 ${this._formatTimeSpan(h199)})</div>`;
+                                    }
                                 }
-                                if(safeTarget > 200 && reqExpOver200 > 0) { 
-                                    let fullBooks = Math.ceil(reqExpOver200 / 2500000); html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:4px;">Lv.${startOver200}➔${safeTarget} (武学全书): <span style="color:var(--primary); font-weight:bold;">${fullBooks} 本</span> <span style="font-size:0.9em;">(${reqExpOver200.toLocaleString()} exp)</span></div>`; 
-                                    if(zixiuRatePerHour > 0) html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:2px;">(或) 纯自修耗时: <span style="color:var(--primary);">${this._formatTimeSpan(reqExpOver200 / zixiuRatePerHour)}</span></div>`; 
+                                if (reqExpOver200 > 0) {
+                                    let fullBooks = Math.ceil(reqExpOver200 / 2500000);
+                                    html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:4px;">Lv.${start200}➔${safeTarget} (武学全书): <span style="color:var(--primary); font-weight:bold;">${fullBooks} 本</span> <span style="font-size:0.9em;">(${reqExpOver200.toLocaleString()} exp)</span></div>`;
+                                    if(zRateNormal > 0) html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:2px;">(或) 纯自修耗时: <span style="color:var(--primary);">${this._formatTimeSpan(reqExpOver200 / zRateNormal)}</span></div>`; 
                                 }
-                            } else {
-                                if(zixiuRatePerHour > 0) { html += `<div style="color:var(--text-main); font-size:0.85em;">【自修】预计耗时: <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(totalReqExp / zixiuRatePerHour)}</span></div>`; }
-                                if(safeTarget > 200 && reqExpOver200 > 0) { let fullBooks = Math.ceil(reqExpOver200 / 2500000); html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:4px;">Lv.${startOver200}➔${safeTarget} (全书): <span style="color:var(--primary); font-weight:bold;">${fullBooks} 本</span> <span style="font-size:0.9em;">(${reqExpOver200.toLocaleString()} exp)</span></div>`; }
+                            }
+                        } else {
+                            let reqExp200 = 0, reqExpOver200 = 0; let limit200 = Math.min(safeTarget, 200);
+                            if(s.startLv < limit200) { for(let l = s.startLv; l < limit200; l++) { reqExp200 += Math.round(Math.pow(l + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0)); } reqExp200 -= s.startExp; if (reqExp200 < 0) reqExp200 = 0; }
+                            let startOver200 = Math.max(s.startLv, 200);
+                            if(startOver200 < safeTarget) { for (let l = startOver200; l < safeTarget; l++) { reqExpOver200 += Math.round(Math.pow(l + 1, s.skill.wgcf) * s.skill.ndxs + (parseFloat(s.skill.fjsl) || 0)); } if (s.startLv >= 200) { reqExpOver200 -= s.startExp; if (reqExpOver200 < 0) reqExpOver200 = 0; } }
+                            let totalReqExp = reqExp200 + reqExpOver200;
+
+                            if(totalReqExp <= 0) { html += '<div style="color:var(--accent-green); font-size:0.85em;">目标已达成。</div>'; } else {
+                                html += `<div style="color:var(--text-muted); font-size:0.85em; margin-bottom:6px;">所需总熟练度: <span style="color:var(--primary); font-weight:bold;">${totalReqExp.toLocaleString()}</span></div>`;
+                                
+                                let zixiuRatePerHour = (3600 / finalEff.speed) * finalEff.zixiuTick;
+                                
+                                if(canUseItem) {
+                                    let itemName = s.skill.cat === '必杀武学' ? '宝典' : '精要本'; 
+                                    let itemRatePerHour = 0;
+                                    
+                                    if(s.skill.cat === '必杀武学') itemRatePerHour = 2 * (7500 * Math.max(1, finalEff.wx) * (s.bibleMult || 1)); 
+                                    else itemRatePerHour = (DAILY_BOOK_LIMIT / hpd) * 2500000;
+                                    
+                                    let activeRatePerHour = s.includeZixiu ? (itemRatePerHour + zixiuRatePerHour) : itemRatePerHour;
+                                    
+                                    if(s.startLv >= 200) {
+                                        html += `<div style="color:var(--danger); font-size:0.85em; margin-bottom:4px;">已超 200 级上限，${itemName}失效</div>`;
+                                    } else if(reqExp200 > 0 && activeRatePerHour > 0) {
+                                        let hoursTo200 = reqExp200 / activeRatePerHour; 
+                                        let booksUsed = s.skill.cat === '必杀武学' ? (hoursTo200 * 2).toFixed(2) : (hoursTo200 * (DAILY_BOOK_LIMIT / hpd)).toFixed(2);
+                                        
+                                        if(s.includeZixiu) {
+                                            let expB = hoursTo200 * itemRatePerHour; let expZ = hoursTo200 * zixiuRatePerHour;
+                                            html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:2px;">Lv.${s.startLv}➔${limit200} (并行推演): 约 <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(hoursTo200)}</span></div>`;
+                                            html += `<div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:2px;">├ 消耗${itemName}: <span style="color:var(--primary);">${booksUsed} 本</span> <span style="font-size:0.9em;">(贡献: ${Math.floor(expB).toLocaleString()} exp)</span></div>`;
+                                            html += `<div style="color:var(--text-muted); font-size:0.8em; margin-left:12px; margin-bottom:4px;">└ 同步自修: <span style="font-size:0.9em;">(贡献: ${Math.floor(expZ).toLocaleString()} exp)</span></div>`;
+                                        } else {
+                                            let limitText = safeTarget > 200 ? ' <span style="color:var(--danger); font-size:0.85em;">(仅算至200级)</span>' : '';
+                                            html += `<div style="color:var(--text-main); font-size:0.85em; margin-bottom:4px;">Lv.${s.startLv}➔${limit200} (纯读${itemName}): <span style="color:var(--accent-green); font-weight:bold;">${booksUsed} 本</span> (约 ${this._formatTimeSpan(hoursTo200)})${limitText}</div>`;
+                                        }
+                                    }
+                                    if(safeTarget > 200 && reqExpOver200 > 0) { 
+                                        let fullBooks = Math.ceil(reqExpOver200 / 2500000);
+                                        html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:4px;">Lv.${startOver200}➔${safeTarget} (武学全书): <span style="color:var(--primary); font-weight:bold;">${fullBooks} 本</span> <span style="font-size:0.9em;">(${reqExpOver200.toLocaleString()} exp)</span></div>`; 
+                                        if(zixiuRatePerHour > 0) html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:2px;">(或) 纯自修耗时: <span style="color:var(--primary);">${this._formatTimeSpan(reqExpOver200 / zixiuRatePerHour)}</span></div>`; 
+                                    }
+                                } else {
+                                    if(zixiuRatePerHour > 0) { html += `<div style="color:var(--text-main); font-size:0.85em;">【自修】预计耗时: <span style="color:var(--accent-green); font-weight:bold;">${this._formatTimeSpan(totalReqExp / zixiuRatePerHour)}</span></div>`; }
+                                    if(safeTarget > 200 && reqExpOver200 > 0) {
+                                        let fullBooks = Math.ceil(reqExpOver200 / 2500000);
+                                        html += `<div style="color:var(--text-muted); font-size:0.85em; margin-top:4px;">Lv.${startOver200}➔${safeTarget} (武学全书): <span style="color:var(--primary); font-weight:bold;">${fullBooks} 本</span> <span style="font-size:0.9em;">(${reqExpOver200.toLocaleString()} exp)</span></div>`; 
+                                    }
+                                }
                             }
                         }
-                    }
-                    html += '</div>';
-                });
-            }
-            html += '</div>'; container.innerHTML = html;
-        },
-        renderDOM() {
-            const container = document.getElementById('sim_timeline_container'); const nodeSel = document.getElementById('sim_target_node_sel');
-            if (nodeSel) { nodeSel.innerHTML = this.state.nodes.map(n => `<option value="${n.index}">节点：${n.cumulativeHours - n.hours} - ${n.cumulativeHours} 小时</option>`).join(''); }
-            if(!container) return;
-            let htmlArray = []; const colors = ['#d4af37', '#00bcd4', '#4caf50', '#ff4444', '#9c27b0', '#ff9800', '#00e676', '#ff4081'];
-            this.state.nodes.forEach((node, i) => {
-                let outerOpts = '<option value="">-- 无操作 --</option>'; let innerOpts = '<option value="">-- 无操作 --</option>'; let parryOpts = '<option value="">-- 无操作 --</option>';
-                this.state.trackedSkills.forEach(s => {
-                    if (node.index < (s.introducedAtNode || 0)) return; 
-                    let sid = String(s.uid || s.id); let cat = s.skill.cat;
-                    if(cat === "绝世外功" || cat === "绝学外功") outerOpts += `<option value="${sid}" ${node.tianwuSelect.outer==sid ? 'selected' : ''}>${s.skill.name}</option>`;
-                    if(cat === "绝世内功" || cat === "绝学内功") innerOpts += `<option value="${sid}" ${node.tianwuSelect.inner==sid ? 'selected' : ''}>${s.skill.name}</option>`;
-                    if(cat === "格挡武功") parryOpts += `<option value="${sid}" ${node.tianwuSelect.parry==sid ? 'selected' : ''}>${s.skill.name}</option>`;
-                });
-                let actionRows = ''; let readBarBlocks = ''; let zixiuBarBlocks = ''; let allocHtml = '';
-                this.state.trackedSkills.forEach((s, sIdx) => {
-                    let sid = String(s.uid || s.id);
-                    if (node.index < (s.introducedAtNode || 0)) return; 
-                    let sel = node.actions[sid] || ""; let log = node.skillLogs[sid]; let timeStr = log ? log.hours.toFixed(1) : "0.0"; let cColor = colors[sIdx % colors.length];
-                    let st = node.snapshot[sid] || {lv: s.startLv, exp: s.startExp}; let tSt = node.trainedSnapshot[sid] || {lv: s.startLv, exp: s.startExp}; 
-                    let isTargetReached = st.lv >= s.targetLv; let targetColor = isTargetReached ? 'var(--accent-green)' : 'var(--text-main)';
-                    let opts = `<option value="">-- 无操作 --</option><option value="zixiu" ${sel==='zixiu'?'selected':''}>自修</option>`;
-                    if(s.skill.cat === '必杀武学') opts += `<option value="read" ${sel==='read'?'selected':''}>读宝典</option><option value="read_zixiu" ${sel==='read_zixiu'?'selected':''}>读宝典+自修</option>`;
-                    if(s.skill.cat === '石壁武学') opts += `<option value="qianben" ${sel==='qianben'?'selected':''}>读椠本</option><option value="qianben_zixiu" ${sel==='qianben_zixiu'?'selected':''}>读椠本+自修</option>`;
-                    if(s.skill.cat === '门派精要') opts += `<option value="jingyao" ${sel==='jingyao'?'selected':''}>读精要本</option><option value="jingyao_zixiu" ${sel==='jingyao_zixiu'?'selected':''}>读精要本+自修</option>`;
-                    let targetBadge = isTargetReached ? `<span style="background:var(--accent-green);color:#000;font-size:0.7em;padding:1px 4px;border-radius:3px;margin-left:6px;vertical-align:middle;white-space:nowrap;">✓ 达成</span>` : '';
-                    
-                    let formatExp = (lv, exp, skill) => {
-                        let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(skill) : 500; cap = Math.max(cap, s.targetLv || 1);
-                        if (lv >= cap) return `<span style="color:var(--accent-green); font-size:0.85em;">(MAX)</span>`;
-                        let nextLvlCost = Math.round(Math.pow(lv + 1, parseFloat(skill.wgcf)||1) * (parseFloat(skill.ndxs)||1) + (parseFloat(skill.fjsl) || 0));
-                        let p = Math.floor((exp / nextLvlCost) * 100); return `<span style="color:var(--primary); font-size:0.85em;">(${p}%)</span>`;
-                    };
-
-                    // 绝对 UI 判定，只要 UI 上有书，就强行打出对冲箭头
-                    let uiFull = node.itemAlloc && node.itemAlloc[sid] ? parseInt(node.itemAlloc[sid].full)||0 : 0;
-                    let uiSec = node.itemAlloc && node.itemAlloc[sid] ? parseInt(node.itemAlloc[sid].secret)||0 : 0;
-                    let hasItemAlloc = (uiFull > 0 || uiSec > 0);
-
-                    let statusHtml = '';
-                    if (hasItemAlloc && (st.lv !== tSt.lv || Math.floor(st.exp) !== Math.floor(tSt.exp))) {
-                        statusHtml = `<div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;"><span style="font-size:0.95em; font-weight:bold; color:var(--text-main);">Lv.${tSt.lv}</span><span style="font-size:0.85em; color:var(--text-muted);">${Math.floor(tSt.exp).toLocaleString()} exp ${formatExp(tSt.lv, tSt.exp, s.skill)}</span><span style="color:var(--accent-green); font-weight:bold; margin:0 4px;">➔</span><span style="font-size:0.95em; font-weight:bold; color:var(--accent-green);">Lv.${st.lv}</span><span style="font-size:0.85em; color:var(--accent-green);">${Math.floor(st.exp).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span></div>`;
-                    } else { statusHtml = `<div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;"><span style="width:50px; font-size:0.95em; font-weight:bold; color:${targetColor};">Lv.${st.lv}</span><span style="width:145px; font-size:0.85em; color:var(--text-muted); text-align:left;">${Math.floor(st.exp).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span></div>`; }
-
-                    let multHtml = '';
-                    if (s.skill.cat === '必杀武学') {
-                        let bMult = s.bibleMult || 1;
-                        multHtml = `<select onchange="window.simEngine.updateTrackedSkillMult('${sid}', this.value)" style="width:85px; height:28px; padding:0 5px; background:var(--bg-input); border:1px solid var(--border); color:var(--text-highlight); font-size:0.85em; border-radius:4px; outline:none; cursor:pointer; flex-shrink:0;"><option value="1" ${bMult==1?'selected':''}>1倍 (无)</option><option value="2" ${bMult==2?'selected':''}>2倍 (丹药)</option><option value="2.2" ${bMult==2.2?'selected':''}>2.2倍(精油)</option><option value="3" ${bMult==3?'selected':''}>3倍 (精油)</option></select>`;
-                    }
-
-                    actionRows += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; background:rgba(0,0,0,0.2); padding:8px 15px; border-radius:6px; border:1px solid var(--border-light); min-width: max-content;">
-                        <div style="display:flex; flex-direction:column; gap:2px; flex-shrink:0;"><svg onclick="window.simEngine.moveTrackedSkill('${sid}', -1)" style="cursor:pointer; color:var(--text-muted); transition:0.2s;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'"><polyline points="18 15 12 9 6 15"></polyline></svg><svg onclick="window.simEngine.moveTrackedSkill('${sid}', 1)" style="cursor:pointer; color:var(--text-muted); transition:0.2s;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'"><polyline points="6 9 12 15 18 9"></polyline></svg></div>
-                        <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${cColor}; box-shadow: 0 0 5px ${cColor}; flex-shrink:0;"></span>
-                        <span style="flex:1; font-weight:bold; color:${targetColor}; font-size:0.95em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width: 150px;" title="${s.skill.name}">${s.skill.name}${targetBadge}</span>
-                        ${statusHtml}
-                        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; margin-left: auto;">
-                            <select onchange="window.simEngine.updateNodeAction(${i}, '${sid}', this.value)" style="width:110px; height:28px; padding:0 5px; background:var(--bg-input); border:1px solid var(--border); color:var(--primary); font-size:0.85em; border-radius:4px; outline:none; cursor:pointer;">${opts}</select>${multHtml}
-                            <span style="width:145px; text-align:right; font-size:0.85em; color:var(--text-muted); white-space:nowrap;">耗时: <span style="color:var(--text-highlight); font-weight:bold;">${timeStr}h</span> <span style="font-size:0.9em;color:var(--text-muted);">[≈${this._formatTimeSpan(log ? log.hours : 0)}]</span></span>
-                            <button class="btn-action" style="margin-left:5px; padding:2px 6px; color:var(--text-muted); border: none; background: transparent; font-size:1.2em; line-height:1;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'" onclick="window.simEngine.removeTrackedSkill('${sid}')" title="移出沙盘">✖</button>
-                        </div></div>`;
-                    
-                    if (log) {
-                        let rPct = (log.readHours / node.hours) * 100; if(rPct > 0) readBarBlocks += `<div style="width:${rPct}%; height:8px; background:${cColor};" title="${s.skill.name} (读书): ${log.readHours.toFixed(1)}h"></div>`;
-                        let zPct = (log.zixiuHours / node.hours) * 100; if(zPct > 0) zixiuBarBlocks += `<div style="width:${zPct}%; height:8px; background:${cColor};" title="${s.skill.name} (自修): ${log.zixiuHours.toFixed(1)}h"></div>`;
-                    }
-                    
-                    allocHtml += `<div class="sim-alloc-row" style="background:rgba(0,0,0,0.1); border-color:var(--border-light); padding:4px 8px; margin:0;">
-                        <span class="sim-alloc-name" style="font-weight:normal; font-size:0.85em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${s.skill.name}">${s.skill.name}</span>
-                        <div style="display:flex;align-items:center;gap:4px; border-bottom:1px solid rgba(255,255,255,0.4);" title="使用：武学全书(满)"><img src="icons/武学全书.png" style="width:16px;height:16px;object-fit:contain;"><input type="number" placeholder="" id="sim_f_${i}_${sid}" class="sim-alloc-input" value="${uiFull > 0 ? uiFull : ''}" style="width:35px; border:none; outline:none; background:transparent; color:#ffffff; font-size:1em; text-align:center; padding:2px 0;" onchange="window.simEngine.updateItemAlloc(${i}, '${sid}', 'full', this.value)"></div> 
-                        <div style="display:flex;align-items:center;gap:4px;margin-left:6px; border-bottom:1px solid rgba(255,255,255,0.4);" title="使用：武学秘本(满)"><img src="icons/武学秘本.png" style="width:16px;height:16px;object-fit:contain;"><input type="number" placeholder="" id="sim_s_${i}_${sid}" class="sim-alloc-input" value="${uiSec > 0 ? uiSec : ''}" style="width:35px; border:none; outline:none; background:transparent; color:#ffffff; font-size:1em; text-align:center; padding:2px 0;" onchange="window.simEngine.updateItemAlloc(${i}, '${sid}', 'secret', this.value)"></div>
-                    </div>`;
-                });
-
-                let timeBarHtml = `<div style="margin-bottom:15px; background:rgba(0,0,0,0.2); border:1px solid var(--border-light); border-radius:6px; padding:10px;"><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px; color:var(--text-muted);"><span>读书通道 [剩余 ${(node.finalReadLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${readBarBlocks}</div><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-top:8px; margin-bottom:4px; color:var(--text-muted);"><span>自修通道 [剩余 ${(node.finalZixiuLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${zixiuBarBlocks}</div></div>`;
-                let effSnapHtml = `<div style="background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span style="color:var(--text-highlight); font-size:0.85em; font-weight:bold; display:flex; align-items:center; gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg> 节点属性配置</span><button class="btn-action" style="padding:4px 8px; color:var(--primary); border-color:var(--border-gold); display:flex; align-items:center; justify-content:center;" onclick="window.simEngine.syncNodeEff(${i}, this)" title="同步左侧【武功配置】的等级信息及当前节点的【打点/吃药】快照"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button></div><div class="sim-dash-snapshot" style="margin-bottom:0;"><span style="display:inline-flex;align-items:center;gap:4px;">自修: ${node.eff.zixiuTick.toFixed(2)}</span><span style="display:inline-flex;align-items:center;gap:4px;">悟性: ${node.eff.wx}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤仙丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤仙丹: ${node.eff.tqxd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤金丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤金丹: ${node.eff.tqjd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天命天丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天命天丹: ${node.eff.tmtd}</span>${node.cumulativeHours >= 4000 ? `<span style="color:var(--secondary);display:inline-flex;align-items:center;gap:4px;">格挡: ${node.eff.twParryTick.toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝外: ${node.eff.twUltTick.toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝内: ${node.eff.twUltTick.toFixed(2)}</span>` : ''}</div></div>`;
-
-                let tianwuHtml = '';
-                if(node.cumulativeHours >= 4000) { 
-                    tianwuHtml = `<div style="margin-top:15px; border-top:1px dashed var(--border-light); padding-top:15px;"><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(135 12 12)"></ellipse></svg> 并行天悟指派</div><div style="display:flex; gap:15px; margin-bottom: 10px;"><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">绝外</span> <select id="sim_tw_o_${i}" onchange="window.simEngine.recalculate()" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${outerOpts}</select></div><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">绝内</span> <select id="sim_tw_i_${i}" onchange="window.simEngine.recalculate()" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${innerOpts}</select></div><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">格挡</span> <select id="sim_tw_p_${i}" onchange="window.simEngine.recalculate()" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${parryOpts}</select></div></div></div>`;
+                        html += '</div>';
+                    });
                 }
+                html += '</div>'; container.innerHTML = html;
+            },
+            renderDOM() {
+                const container = document.getElementById('sim_timeline_container'); 
+                const nodeSel = document.getElementById('sim_target_node_sel');
+                if (nodeSel) {
+                    nodeSel.innerHTML = this.state.nodes.map(n => `<option value="${n.index}">节点：${n.cumulativeHours - n.hours} - ${n.cumulativeHours} 小时</option>`).join('');
+                }
+                if(!container) return;
                 
-                let nodeHtml = `<div class="sim-node-card" style="overflow-x: auto;"><div class="sim-node-header"><div style="display:flex; align-items:center; gap:10px;"><span class="sim-time-badge">节点：${node.cumulativeHours - node.hours} - ${node.cumulativeHours} 小时</span><span class="sim-date-text">${node.startTimeStr} <span style="color:var(--primary)">➜</span> ${node.endTimeStr}</span></div><button class="btn-action" style="color:var(--danger); border-color:transparent;" onclick="window.simEngine.removeNode(${i})">删除节点</button></div>${effSnapHtml}<div><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 推演序列</div>${timeBarHtml}${actionRows}</div>${tianwuHtml}<div style="margin-top:15px; border-top:1px dashed var(--border-light); padding-top:15px;"><div class="sim-section-title" style="color:#ffffff;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> 当前节点末结余 「<img src="icons/武学全书.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;"> ×${node.inventorySnapshot.full} | <img src="icons/武学秘本.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;"> ×${node.inventorySnapshot.secret}」</div><div style="max-height: 100px; overflow-y:auto; display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">${allocHtml}</div></div></div>`;
-                htmlArray.push(nodeHtml);
-            });
-            container.innerHTML = htmlArray.join('');
-        }
-    };
-    setTimeout(() => { if (window.simEngine) window.simEngine.init(); }, 100);
-})();
+                let htmlArray = []; const colors = ['#d4af37', '#00bcd4', '#4caf50', '#ff4444', '#9c27b0', '#ff9800', '#00e676', '#ff4081'];
+                this.state.nodes.forEach((node, i) => {
+                    let outerOpts = '<option value="">-- 无操作 --</option>'; let innerOpts = '<option value="">-- 无操作 --</option>'; let parryOpts = '<option value="">-- 无操作 --</option>';
+                    this.state.trackedSkills.forEach(s => {
+                        if (node.index < s.introducedAtNode) return; 
+                        let cat = s.skill.cat;
+                        if(cat === "绝世外功" || cat === "绝学外功") outerOpts += `<option value="${s.id}" ${node.tianwuSelect.outer==s.id ? 'selected' : ''}>${s.skill.name}</option>`;
+                        if(cat === "绝世内功" || cat === "绝学内功") innerOpts += `<option value="${s.id}" ${node.tianwuSelect.inner==s.id ? 'selected' : ''}>${s.skill.name}</option>`;
+                        if(cat === "格挡武功") parryOpts += `<option value="${s.id}" ${node.tianwuSelect.parry==s.id ? 'selected' : ''}>${s.skill.name}</option>`;
+                    });
+                    
+                    let actionRows = ''; let readBarBlocks = ''; let zixiuBarBlocks = ''; let allocHtml = '';
+                    
+                    this.state.trackedSkills.forEach((s, sIdx) => {
+                        if (node.index < s.introducedAtNode) return; 
+                        
+                        let sel = node.actions[s.id] || ""; let log = node.skillLogs[s.id]; 
+                        let timeStr = log ? log.hours.toFixed(1) : "0.0"; let cColor = colors[sIdx % colors.length];
+                        
+                        let st = node.snapshot[String(s.id)] || {lv: s.startLv, exp: s.startExp}; 
+                        let tSt = node.trainedSnapshot[String(s.id)] || {lv: s.startLv, exp: s.startExp}; 
+                        
+                        let isTargetReached = st.lv >= s.targetLv; 
+                        let targetColor = isTargetReached ? 'var(--accent-green)' : 'var(--text-main)';
+
+                        let opts = `<option value="">-- 无操作 --</option><option value="zixiu" ${sel==='zixiu'?'selected':''}>自修</option>`;
+                        if(s.skill.cat === '必杀武学') opts += `<option value="read" ${sel==='read'?'selected':''}>读宝典</option><option value="read_zixiu" ${sel==='read_zixiu'?'selected':''}>读宝典+自修</option>`;
+                        if(s.skill.cat === '石壁武学') opts += `<option value="qianben" ${sel==='qianben'?'selected':''}>读椠本</option><option value="qianben_zixiu" ${sel==='qianben_zixiu'?'selected':''}>读椠本+自修</option>`;
+                        if(s.skill.cat === '门派精要') opts += `<option value="jingyao" ${sel==='jingyao'?'selected':''}>读精要本</option><option value="jingyao_zixiu" ${sel==='jingyao_zixiu'?'selected':''}>读精要本+自修</option>`;
+                        
+                        let targetBadge = isTargetReached ? `<span style="background:var(--accent-green);color:#000;font-size:0.7em;padding:1px 4px;border-radius:3px;margin-left:6px;vertical-align:middle;white-space:nowrap;">✓ 达成</span>` : '';
+                        
+                        let formatExp = (lv, exp, skill) => {
+                            let cap = (typeof getSkillLevelCap === 'function') ? getSkillLevelCap(skill) : 500;
+                            if (lv >= s.targetLv || lv >= cap) return `<span style="color:var(--accent-green); font-size:0.85em;">(MAX)</span>`;
+                            let nextLvlCost = Math.round(Math.pow(lv + 1, skill.wgcf) * skill.ndxs + (parseFloat(skill.fjsl) || 0));
+                            let p = Math.floor((exp / nextLvlCost) * 100);
+                            return `<span style="color:var(--primary); font-size:0.85em;">(${p}%)</span>`;
+                        };
+
+                        let hasItemAlloc = (node.itemAlloc[s.id] && (node.itemAlloc[s.id].full > 0 || node.itemAlloc[s.id].secret > 0));
+                        let statusHtml = '';
+                        if (hasItemAlloc && (st.lv !== tSt.lv || Math.floor(st.exp) !== Math.floor(tSt.exp))) {
+                            statusHtml = `
+                            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;">
+                                <span style="font-size:0.95em; font-weight:bold; color:var(--text-main);">Lv.${tSt.lv}</span>
+                                <span style="font-size:0.85em; color:var(--text-muted);">${Math.floor(tSt.exp).toLocaleString()} exp ${formatExp(tSt.lv, tSt.exp, s.skill)}</span>
+                                <span style="color:var(--accent-green); font-weight:bold; margin:0 4px;">➔</span>
+                                <span style="font-size:0.95em; font-weight:bold; color:var(--accent-green);">Lv.${st.lv}</span>
+                                <span style="font-size:0.85em; color:var(--accent-green);">${Math.floor(st.exp).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span>
+                            </div>`;
+                        } else {
+                            statusHtml = `
+                            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; white-space:nowrap;">
+                                <span style="width:50px; font-size:0.95em; font-weight:bold; color:${targetColor};">Lv.${st.lv}</span>
+                                <span style="width:145px; font-size:0.85em; color:var(--text-muted); text-align:left;">${Math.floor(st.exp).toLocaleString()} exp ${formatExp(st.lv, st.exp, s.skill)}</span>
+                            </div>`;
+                        }
+
+                        let multHtml = '';
+                        if (s.skill.cat === '必杀武学') {
+                            let bMult = s.bibleMult || 1;
+                            multHtml = `<select onchange="window.simEngine.updateTrackedSkillMult('${s.id}', this.value)" style="width:85px; height:28px; padding:0 5px; background:var(--bg-input); border:1px solid var(--border); color:var(--text-highlight); font-size:0.85em; border-radius:4px; outline:none; cursor:pointer; flex-shrink:0;">
+                                <option value="1" ${bMult==1?'selected':''}>1倍 (无)</option>
+                                <option value="2" ${bMult==2?'selected':''}>2倍 (丹药)</option>
+                                <option value="2.2" ${bMult==2.2?'selected':''}>2.2倍(精油)</option>
+                                <option value="3" ${bMult==3?'selected':''}>3倍 (精油)</option>
+                            </select>`;
+                        }
+
+                        actionRows += `<div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; background:rgba(0,0,0,0.2); padding:8px 15px; border-radius:6px; border:1px solid var(--border-light); min-width: max-content;">
+                            <div style="display:flex; flex-direction:column; gap:2px; flex-shrink:0;">
+                                <svg onclick="window.simEngine.moveTrackedSkill('${s.id}', -1)" style="cursor:pointer; color:var(--text-muted); transition:0.2s;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'"><polyline points="18 15 12 9 6 15"></polyline></svg>
+                                <svg onclick="window.simEngine.moveTrackedSkill('${s.id}', 1)" style="cursor:pointer; color:var(--text-muted); transition:0.2s;" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                            </div>
+                            <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${cColor}; box-shadow: 0 0 5px ${cColor}; flex-shrink:0;"></span>
+                            <span style="flex:1; font-weight:bold; color:${targetColor}; font-size:0.95em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width: 150px;" title="${s.skill.name}">${s.skill.name}${targetBadge}</span>
+                            ${statusHtml}
+                            <div style="display:flex; align-items:center; gap:6px; flex-shrink:0; margin-left: auto;">
+                                <select onchange="window.simEngine.updateNodeAction(${i}, ${s.id}, this.value)" style="width:110px; height:28px; padding:0 5px; background:var(--bg-input); border:1px solid var(--border); color:var(--primary); font-size:0.85em; border-radius:4px; outline:none; cursor:pointer;">${opts}</select>
+                                ${multHtml}
+                                <span style="width:145px; text-align:right; font-size:0.85em; color:var(--text-muted); white-space:nowrap;">耗时: <span style="color:var(--text-highlight); font-weight:bold;">${timeStr}h</span> <span style="font-size:0.9em;color:var(--text-muted);">[≈${this._formatTimeSpan(log ? log.hours : 0)}]</span></span>
+                                <button class="btn-action" style="margin-left:5px; padding:2px 6px; color:var(--text-muted); border: none; background: transparent; font-size:1.2em; line-height:1;" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text-muted)'" onclick="window.simEngine.removeTrackedSkill('${s.id}')" title="移出沙盘">✖</button>
+                            </div>
+                        </div>`;
+                        
+                        if (log) {
+                            let rPct = (log.readHours / node.hours) * 100;
+                            if(rPct > 0) readBarBlocks += `<div style="width:${rPct}%; height:8px; background:${cColor};" title="${s.skill.name} (读书): ${log.readHours.toFixed(1)}h"></div>`;
+                            let zPct = (log.zixiuHours / node.hours) * 100;
+                            if(zPct > 0) zixiuBarBlocks += `<div style="width:${zPct}%; height:8px; background:${cColor};" title="${s.skill.name} (自修): ${log.zixiuHours.toFixed(1)}h"></div>`;
+                        }
+                        
+                        allocHtml += `<div class="sim-alloc-row" style="background:rgba(0,0,0,0.1); border-color:var(--border-light); padding:4px 8px; margin:0;">
+                            <span class="sim-alloc-name" style="font-weight:normal; font-size:0.85em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${s.skill.name}">${s.skill.name}</span>
+                            <div style="display:flex;align-items:center;gap:4px; border-bottom:1px solid rgba(255,255,255,0.4);" title="使用：武学全书(满)"><img src="icons/武学全书.png" style="width:16px;height:16px;object-fit:contain;"><input type="number" placeholder="" id="sim_f_${i}_${s.id}" class="sim-alloc-input" value="${node.itemAlloc[s.id] && node.itemAlloc[s.id].full > 0 ? node.itemAlloc[s.id].full : ''}" style="width:35px; border:none; outline:none; background:transparent; color:#ffffff; font-size:1em; text-align:center; padding:2px 0;" onchange="window.simEngine.recalculate()"></div> 
+                            <div style="display:flex;align-items:center;gap:4px;margin-left:6px; border-bottom:1px solid rgba(255,255,255,0.4);" title="使用：武学秘本(满)"><img src="icons/武学秘本.png" style="width:16px;height:16px;object-fit:contain;"><input type="number" placeholder="" id="sim_s_${i}_${s.id}" class="sim-alloc-input" value="${node.itemAlloc[s.id] && node.itemAlloc[s.id].secret > 0 ? node.itemAlloc[s.id].secret : ''}" style="width:35px; border:none; outline:none; background:transparent; color:#ffffff; font-size:1em; text-align:center; padding:2px 0;" onchange="window.simEngine.recalculate()"></div>
+                        </div>`;
+                    });
+
+                    let timeBarHtml = `<div style="margin-bottom:15px; background:rgba(0,0,0,0.2); border:1px solid var(--border-light); border-radius:6px; padding:10px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px; color:var(--text-muted);"><span>读书通道 [剩余 ${(node.finalReadLeft||0).toFixed(1)}h]</span></div>
+                        <div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${readBarBlocks}</div>
+                        <div style="display:flex; justify-content:space-between; font-size:0.85em; margin-top:8px; margin-bottom:4px; color:var(--text-muted);"><span>自修通道 [剩余 ${(node.finalZixiuLeft||0).toFixed(1)}h]</span></div>
+                        <div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${zixiuBarBlocks}</div>
+                    </div>`;
+                    
+                    let effSnapHtml = `<div style="background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:15px;"><div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;"><span style="color:var(--text-highlight); font-size:0.85em; font-weight:bold; display:flex; align-items:center; gap:4px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg> 节点属性配置</span><button class="btn-action" style="padding:4px 8px; color:var(--primary); border-color:var(--border-gold); display:flex; align-items:center; justify-content:center;" onclick="window.simEngine.syncNodeEff(${i}, this)" title="同步左侧【武功配置】的等级信息及当前节点的【打点/吃药】快照"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path></svg></button></div><div class="sim-dash-snapshot" style="margin-bottom:0;"><span style="display:inline-flex;align-items:center;gap:4px;">自修: ${node.eff.zixiuTick.toFixed(2)}</span><span style="display:inline-flex;align-items:center;gap:4px;">悟性: ${node.eff.wx}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤仙丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤仙丹: ${node.eff.tqxd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天勤金丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天勤金丹: ${node.eff.tqjd}</span><span style="display:inline-flex;align-items:center;gap:4px;"><img src="icons/天命天丹.png" style="width:14px;height:14px;object-fit:contain;" onerror="this.style.display='none'">天命天丹: ${node.eff.tmtd}</span>${node.cumulativeHours >= 4000 ? `<span style="color:var(--secondary);display:inline-flex;align-items:center;gap:4px;">格挡: ${node.eff.twParryTick.toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝外: ${node.eff.twUltTick.toFixed(2)}</span><span style="color:var(--primary);display:inline-flex;align-items:center;gap:4px;">绝内: ${node.eff.twUltTick.toFixed(2)}</span>` : ''}</div></div>`;
+
+                    let tianwuHtml = '';
+                    if(node.cumulativeHours >= 4000) { 
+                        tianwuHtml = `<div style="margin-top:15px; border-top:1px dashed var(--border-light); padding-top:15px;"><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(135 12 12)"></ellipse></svg> 并行天悟指派</div><div style="display:flex; gap:15px; margin-bottom: 10px;"><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">绝外</span> <select id="sim_tw_o_${i}" onchange="window.simEngine.recalculate()" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${outerOpts}</select></div><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">绝内</span> <select id="sim_tw_i_${i}" onchange="window.simEngine.recalculate()" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${innerOpts}</select></div><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">格挡</span> <select id="sim_tw_p_${i}" onchange="window.simEngine.recalculate()" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${parryOpts}</select></div></div></div>`;
+                    }
+                    
+                    let nodeHtml = `<div class="sim-node-card" style="overflow-x: auto;"><div class="sim-node-header"><div style="display:flex; align-items:center; gap:10px;"><span class="sim-time-badge">节点：${node.cumulativeHours - node.hours} - ${node.cumulativeHours} 小时</span><span class="sim-date-text">${node.startTimeStr} <span style="color:var(--primary)">➜</span> ${node.endTimeStr}</span></div><button class="btn-action" style="color:var(--danger); border-color:transparent;" onclick="window.simEngine.removeNode(${i})">删除节点</button></div>${effSnapHtml}<div><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 推演序列</div>${timeBarHtml}${actionRows}</div>${tianwuHtml}<div style="margin-top:15px; border-top:1px dashed var(--border-light); padding-top:15px;"><div class="sim-section-title" style="color:#ffffff;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> 节点后背包结余 「<img src="icons/武学全书.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;"> ×${node.inventorySnapshot.full} | <img src="icons/武学秘本.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;"> ×${node.inventorySnapshot.secret}」</div><div style="max-height: 100px; overflow-y:auto; display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">${allocHtml}</div></div></div>`;
+                    htmlArray.push(nodeHtml);
+                });
+                container.innerHTML = htmlArray.join('');
+            }
+        };
+        setTimeout(() => { if (window.simEngine) window.simEngine.init(); }, 100);
+    })();
 </script>
 </body>
 </html>
