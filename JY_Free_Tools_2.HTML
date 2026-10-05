@@ -10,6 +10,77 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
 
+/* ================= 原版脱胎模拟器样式 ================= */
+.tt-row { display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 12px; background: var(--bg-card); padding: 10px; border-radius: 8px; border: 1px solid var(--border-light); }
+.tt-label { width: 40px; font-weight: bold; color: var(--text-main); text-align: center; }
+.tt-input { width: 60px; height: 30px; text-align: center; border: 1px solid var(--border); background: var(--bg-input); color: var(--text-main); border-radius: 4px; outline: none; font-weight: bold; }
+.tt-input:focus { border-color: var(--primary); }
+.tt-btn { width: 30px; height: 30px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 1.2em; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+.tt-btn:hover { filter: brightness(1.2); transform: scale(1.05); }
+.tt-btn:active { transform: scale(0.95); }
+/* 减号按钮：红色质感 */
+#jbl, #jds, #jwx, #jfy, #jdl, #jjm, #jgb { background: rgba(255, 68, 68, 0.15); color: var(--danger); border: 1px solid rgba(255, 68, 68, 0.3); }
+/* 加号按钮：绿色质感 */
+.tt-btn-plus { background: rgba(76, 175, 80, 0.15); color: var(--accent-green); border: 1px solid rgba(76, 175, 80, 0.3); }
+.tt-delta { width: 30px; text-align: center; font-weight: bold; color: var(--text-muted); }
+.tt-result { width: 50px; height: 30px; display: flex; align-items: center; justify-content: center; background: rgba(212, 175, 55, 0.1); border: 1px solid var(--border-gold); color: var(--primary); font-weight: bold; border-radius: 4px; }
+.tt-summary { margin-top: 20px; padding: 15px; background: rgba(212, 175, 55, 0.1); border: 1px dashed var(--border-gold); border-radius: 8px; text-align: center; color: var(--primary); font-size: 1.1em; font-weight: bold; }
+.tt-sysx { font-size: 1.4em; margin-left: 5px; }
+
+/* 1. 默认状态（暗色模式）：利用滤镜强制将原生黑色图标反转为纯白色 */
+input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+/* 2. 亮色模式下：取消反转，恢复黑色 */
+/* 【重要提示】：请将下面的 [data-theme="light"] 替换为您项目中实际使用的亮色模式选择器 */
+/* 如果您使用的是 class 切换，可能是 .light-mode 或者 body.light 等 */
+[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.light-mode input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+.light input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: none !important;
+}
+
+/* ================= 天悟4件套共鸣动画 ================= */
+@keyframes tianwuResonance {
+    0% { 
+        box-shadow: 0 0 5px rgba(212, 175, 55, 0.2), inset 0 0 10px rgba(212, 175, 55, 0.05); 
+        border-color: rgba(212, 175, 55, 0.3); 
+    }
+    50% { 
+        box-shadow: 0 0 15px rgba(212, 175, 55, 0.8), inset 0 0 15px rgba(212, 175, 55, 0.2); 
+        border-color: rgba(212, 175, 55, 1); 
+    }
+    100% { 
+        box-shadow: 0 0 5px rgba(212, 175, 55, 0.2), inset 0 0 10px rgba(212, 175, 55, 0.05); 
+        border-color: rgba(212, 175, 55, 0.3); 
+    }
+}
+
+.tianwu-set-active {
+    /* 激活动画：2秒一个周期的金色呼吸灯 */
+    animation: tianwuResonance 2s infinite alternate !important;
+    /* 增加微弱的暗金渐变背景 */
+    background: linear-gradient(145deg, rgba(212,175,55,0.08) 0%, rgba(0,0,0,0.4) 100%) !important;
+    /* 让卡片轻微放大，产生“激活悬浮”感 */
+    transform: scale(1.03);
+    /* 让放大和光效的出现拥有平滑的过渡 */
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease !important;
+    z-index: 10;
+}
+
+/* ================= 进度沙盘图例分组样式 ================= */
+#sim_custom_legend { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; padding-right: 5px; }
+.legend-group-row { display: flex; align-items: center; background: rgba(0,0,0,0.15); border: 1px dashed var(--border-light); border-radius: 6px; padding: 8px 10px; gap: 10px; flex-wrap: wrap; }
+.legend-group-title { font-size: 0.85em; font-weight: bold; color: var(--secondary); min-width: 65px; border-right: 1px solid var(--border); padding-right: 10px; margin-right: 5px; text-align: right; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: var(--text-main); cursor: pointer; user-select: none; transition: 0.2s; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.02); border: 1px solid transparent; }
+.legend-item:hover { background: rgba(212,175,55,0.1); border-color: rgba(212,175,55,0.3); }
+.legend-item.hidden { opacity: 0.4; filter: grayscale(1); text-decoration: line-through; }
+.legend-color-box { width: 20px; height: 10px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.2); }
+/* 亮色模式适配 */
+[data-theme="light"] .legend-group-row { background: rgba(166, 124, 0, 0.03); border-color: rgba(166, 124, 0, 0.2); }
+
 /* ================= 进度模拟沙盘专属样式 ================= */
 .sim-node-card { background: var(--bg-card); border: 1px solid var(--border-light); border-radius: 8px; padding: 15px; position: relative; margin-left: 15px; transition: 0.3s; }
 .sim-node-card:hover { border-color: var(--primary); box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
@@ -1016,7 +1087,7 @@ button:not(:disabled):active {
             <div class="header-actions"><button class="btn-action" onclick="maxAttributes()">一键升满</button><button class="btn-action" onclick="resetAttributes()">重置</button></div></h2>
             <div class="form-row">
                 <div class="form-group"><label>悟性</label><input type="number" id="wx" value="100" oninput="autoSaveState(); calculate(true);"></div>
-                <div class="form-group"><label>在线时长(H)</label><input type="number" id="sxsj" value="1500" oninput="autoSaveState(); calculate(true);"></div>
+                <div class="form-group"><label>在线时长[H]</label><input type="number" id="sxsj" value="1500" oninput="autoSaveState(); calculate(true);"></div>
             </div>
             <div class="config-grid">
                 <div class="config-card"><label id="lbl_tqxd">天勤仙丹</label><select id="tqxd" onchange="autoSaveState(); calculate(true);"></select></div>
@@ -1025,7 +1096,7 @@ button:not(:disabled):active {
                 <div class="config-card" onclick="toggleCheck(event, 'zxjbd')">
                     <label class="toggle-switch" onclick="event.stopPropagation()">
                         <input type="checkbox" id="zxjbd" onchange="autoSaveState(); calculate(true);">
-                        <span class="slider"></span><span>自修加倍丹(2倍)</span>
+                        <span class="slider"></span><span>自修加倍丹[2倍]</span>
                     </label>
                 </div>
             </div>
@@ -1034,7 +1105,7 @@ button:not(:disabled):active {
                     <div style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
                         <label class="toggle-switch" onclick="event.stopPropagation()">
                             <input type="checkbox" id="twm" onchange="syncSliderState('twm', 'twmfj'); autoSaveState(); calculate(true);">
-                            <span class="slider"></span><span>天悟帽</span>
+                            <span class="slider"></span><span>天悟帽 [+6%]</span>
                         </label>
                         <span id="twmfj_disp" style="color:var(--primary); font-weight:bold; font-size:1.1em; text-shadow:0 0 8px rgba(212,175,55,0.4);">0</span>
                     </div>
@@ -1044,7 +1115,7 @@ button:not(:disabled):active {
                     <div style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
                         <label class="toggle-switch" onclick="event.stopPropagation()">
                             <input type="checkbox" id="twp" onchange="syncSliderState('twp', 'twpfj'); autoSaveState(); calculate(true);">
-                            <span class="slider"></span><span>天悟袍</span>
+                            <span class="slider"></span><span>天悟袍 [+10%]</span>
                         </label>
                         <span id="twpfj_disp" style="color:var(--primary); font-weight:bold; font-size:1.1em; text-shadow:0 0 8px rgba(212,175,55,0.4);">0</span>
                     </div>
@@ -1054,7 +1125,7 @@ button:not(:disabled):active {
                     <div style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
                         <label class="toggle-switch" onclick="event.stopPropagation()">
                             <input type="checkbox" id="twhs" onchange="syncSliderState('twhs', 'twhsfj'); autoSaveState(); calculate(true);">
-                            <span class="slider"></span><span>天悟护手</span>
+                            <span class="slider"></span><span>天悟护手 [+5%]</span>
                         </label>
                         <span id="twhsfj_disp" style="color:var(--primary); font-weight:bold; font-size:1.1em; text-shadow:0 0 8px rgba(212,175,55,0.4);">0</span>
                     </div>
@@ -1064,7 +1135,7 @@ button:not(:disabled):active {
                     <div style="display:flex; justify-content: space-between; align-items: center; width: 100%;">
                         <label class="toggle-switch" onclick="event.stopPropagation()">
                             <input type="checkbox" id="twx" onchange="syncSliderState('twx', 'twxfj'); autoSaveState(); calculate(true);">
-                            <span class="slider"></span><span>天悟靴</span>
+                            <span class="slider"></span><span>天悟靴 [+6%]</span>
                         </label>
                         <span id="twxfj_disp" style="color:var(--primary); font-weight:bold; font-size:1.1em; text-shadow:0 0 8px rgba(212,175,55,0.4);">0</span>
                     </div>
@@ -1091,7 +1162,7 @@ button:not(:disabled):active {
                     <label class="toggle-switch" onclick="event.stopPropagation()"><input type="checkbox" id="twd" onchange="autoSaveState(); calculate(true);"><span class="slider"></span><span>天悟丹 [+5%]</span></label>
                 </div>
                 <div class="config-card">
-                    <label>天悟真诀 <span style="font-size:0.8em;color:var(--text-muted);font-weight:normal;margin-left:5px;">(上限1500)</span></label>
+                    <label>天悟真诀 <span style="font-size:0.8em;color:var(--text-muted);font-weight:normal;margin-left:5px;">[上限1500]</span></label>
                     <input type="number" id="twzj" value="0" class="inline-input" style="width:60px" oninput="if(this.value>1500)this.value=1500;if(this.value<0)this.value=0; autoSaveState(); calculate(true);">
                 </div>
             </div>
@@ -1115,7 +1186,8 @@ button:not(:disabled):active {
             <div class="tab" onclick="switchTab('tab-batch')">批量统计</div>
             <div class="tab" onclick="switchTab('tab-xiaodian')">计算消点</div>
             <div class="tab" onclick="switchTab('tab-reading')">研读秘笈</div>
-            <div class="tab" onclick="switchTab('tab-reverse')">反向推算</div>
+            <div class="tab" onclick="switchTab('tab-reverse')">逆向推算</div>
+            <div class="tab" onclick="switchTab('tab-attribute')">属性调整</div>
             <div class="tab" onclick="switchTab('tab-import')">数据解析</div>
             <div class="tab" onclick="switchTab('tab-simulation')">进度模拟</div>
         </div>
@@ -1821,6 +1893,82 @@ button:not(:disabled):active {
                 </div>
             </div>
         </div>
+
+<!-- ================= 🚀 原版移植：属性调整面板 ================= -->
+<div id="tab-attribute" class="tab-content">
+    <div id="panel-ttmnq" class="panel">
+        <h2 style="display:flex; align-items:center; gap:8px; margin-bottom: 20px;">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+            属性调整 
+            <button class="btn-action" style="margin-left: auto; border-color:var(--danger); color:var(--danger);" onclick="cxsy()">重置</button>
+        </h2>
+        
+        <div class="tt-row">
+            <div class="tt-label">臂力</div>
+            <input type="number" id="tt_bl" class="tt-input" placeholder="0">
+            <button class="tt-btn" id="jbl" onclick="jbl()">−</button>
+            <div class="tt-delta" id="tt_bl1">0</div>
+            <button class="tt-btn tt-btn-plus" id="jjbl" onclick="jjbl()">+</button>
+            <div class="tt-result" id="tt_bl2">0</div>
+        </div>
+        <div class="tt-row">
+            <div class="tt-label">胆识</div>
+            <input type="number" id="tt_ds" class="tt-input" placeholder="0">
+            <button class="tt-btn" id="jds" onclick="jds()">−</button>
+            <div class="tt-delta" id="tt_ds1">0</div>
+            <button class="tt-btn tt-btn-plus" id="jjds" onclick="jjds()">+</button>
+            <div class="tt-result" id="tt_ds2">0</div>
+        </div>
+        <div class="tt-row">
+            <div class="tt-label">悟性</div>
+            <input type="number" id="tt_wx" class="tt-input" placeholder="0">
+            <button class="tt-btn" id="jwx" onclick="jwx()">−</button>
+            <div class="tt-delta" id="tt_wx1">0</div>
+            <button class="tt-btn tt-btn-plus" id="jjwx" onclick="jjwx()">+</button>
+            <div class="tt-result" id="tt_wx2">0</div>
+        </div>
+        <div class="tt-row">
+            <div class="tt-label">福源</div>
+            <input type="number" id="tt_fy" class="tt-input" placeholder="0">
+            <button class="tt-btn" id="jfy" onclick="jfy()">−</button>
+            <div class="tt-delta" id="tt_fy1">0</div>
+            <button class="tt-btn tt-btn-plus" id="jjfy" onclick="jjfy()">+</button>
+            <div class="tt-result" id="tt_fy2">0</div>
+        </div>
+        <div class="tt-row">
+            <div class="tt-label">定力</div>
+            <input type="number" id="tt_dl" class="tt-input" placeholder="0">
+            <button class="tt-btn" id="jdl" onclick="jdl()">−</button>
+            <div class="tt-delta" id="tt_dl1">0</div>
+            <button class="tt-btn tt-btn-plus" id="jjdl" onclick="jjdl()">+</button>
+            <div class="tt-result" id="tt_dl2">0</div>
+        </div>
+        <div class="tt-row">
+            <div class="tt-label">机敏</div>
+            <input type="number" id="tt_jm" class="tt-input" placeholder="0">
+            <button class="tt-btn" id="jjm" onclick="jjm()">−</button>
+            <div class="tt-delta" id="tt_jm1">0</div>
+            <button class="tt-btn tt-btn-plus" id="jjjm" onclick="jjjm()">+</button>
+            <div class="tt-result" id="tt_jm2">0</div>
+        </div>
+        <div class="tt-row">
+            <div class="tt-label">根骨</div>
+            <input type="number" id="tt_gb" class="tt-input" placeholder="0">
+            <button class="tt-btn" id="jgb" onclick="jgb()">−</button>
+            <div class="tt-delta" id="tt_gb1">0</div>
+            <button class="tt-btn tt-btn-plus" id="jjgb" onclick="jjgb()">+</button>
+            <div class="tt-result" id="tt_gb2">0</div>
+        </div>
+        
+        <div class="tt-summary">
+            <span>剩余属性点：<strong id="sysx" class="tt-sysx">0</strong></span>
+        </div>
+    </div>
+</div>
+
         <!-- ================= 🚀 游戏进度推演 ================= -->
         <div id="tab-simulation" class="tab-content">
             <div style="position: relative; min-height: 600px;">
@@ -1834,8 +1982,8 @@ button:not(:disabled):active {
                             </span>
                             <div style="display:flex; align-items:center; gap: 10px; flex-shrink: 0;">
                                 <span style="font-size:0.85em; color:var(--text-muted); white-space:nowrap;">起始日期：</span>
-                                <!-- 增加了 color-scheme: dark; 强制日历图标在深色模式下变白 -->
-                                <input type="datetime-local" id="sim_start_date" style="background:var(--bg-input); border:1px solid var(--border); color:var(--primary); font-weight:bold; border-radius:4px; padding:4px 8px; outline:none; color-scheme: dark;" onchange="simEngine.recalculate()">
+                                <!-- 将强制的 dark 修改为 light dark，支持双色模式智能适配 -->
+                                <input type="datetime-local" id="sim_start_date" style="background:var(--bg-input); border:1px solid var(--border); color:var(--primary); font-weight:bold; border-radius:4px; padding:4px 8px; outline:none; " onchange="simEngine.recalculate()">
                                 <button class="btn-action" onclick="simEngine.addNode()" style="border-color:var(--accent-green); color:var(--accent-green); font-weight:bold; white-space:nowrap; flex-shrink:0;">添加节点</button>
                                 <button class="btn-action" onclick="simEngine.clearAll()" style="border-color:var(--danger); color:var(--danger); font-weight:bold; white-space:nowrap; flex-shrink:0;">清空沙盘</button>
                             </div>
@@ -1856,10 +2004,6 @@ button:not(:disabled):active {
                                 <button class="btn-premium-action" onclick="simEngine.drawChart()" style="height: 38px; border-color:var(--secondary); color:var(--secondary); font-weight:bold; background: rgba(0, 188, 212, 0.05);">
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
                                     可视化时间轴
-                                </button>
-                                <button class="btn-premium-action" onclick="simEngine.clearAll()" style="height: 38px; border-color:var(--danger); color:var(--danger); font-weight:bold; background: rgba(255, 68, 68, 0.05);">
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                                    清空数据
                                 </button>
                             </div>
                         </div>
@@ -2626,11 +2770,11 @@ button:not(:disabled):active {
         [1,"苗家剑法",2.7,0.6,970,5528,"剑","A类",""],[1,"野球拳",2.7,0.6,970,5508,"拳","A类",""], [1,"降龙十八掌",2.7,0.6,970,5500,"拳","A类",""], [1,"独孤九剑奥义",2.7,0.6,970,5501,"剑","A类",""], [1,"六脉神剑",2.7,0.6,970,5502,"剑","A类",""], [1,"打狗棒法",2.7,0.6,970,5510,"棍","A类",""], [1,"胡家刀法",2.7,0.6,970,5507,"刀","A类",""], [1,"金刚伏魔鞭法",2.7,0.6,970,5509,"鞭","A类",""], [1,"杨家霸王枪",2.7,0.6,970,5522,"枪","A类",""], [1,"大金刚掌",2.7,0.6,970,5523,"拳","A类",""], [1,"逍遥御风诀",2.7,0.5,978,5529,"掌","A类",""], [1,"白蟒鞭法",2.7,0.6,970,5527,"鞭","A类",""], [1,"真·辟邪剑法",2.7,0.5,978,5503,"剑","B类",""], [1,"黯然销魂掌",2.7,0.5,978,5504,"拳","B类",""], [1,"西毒杖法",2.7,0.5,978,5521,"杖","B类",""], [1,"金蛇剑法",2.7,0.5,978,5505,"剑","B类",""], [1,"火焰刀法",2.7,0.5,978,5524,"拳","B类",""], [1,"冰蚕神掌",2.7,0.5,978,5525,"拳","B类",""],
         [2,"太玄经",3,2.71,33665,4023,"内","",""], [2,"易筋经",3,2.71,33665,4024,"内","",""], [2,"洗髓经",3,2.71,33665,4025,"内","",""], [2,"神照经",3,2.71,33665,4026,"内","",""], [2,"先天功",3,2.71,33665,4028,"内","",""], [2,"蛤蟆功",3,2.71,33665,4029,"内","",""], [2,"小无相功",3,2.71,33665,4030,"内","",""], [2,"龙象般若功",3,2.71,33665,4031,"内","",""], [2,"逆行经脉",3,2.71,33665,4032,"内","",""], [2,"真·九阴真经",3,2.71,33665,3843,"内","",""], [2,"北冥神功",3,2.71,33665,4027,"内","",""], [2,"九阳神功",3,2.71,33665,2202,"内","",""], [2,"葵花宝典",3,4.5,10000,3004,"内+特","",""], [2,"乾坤大挪移",3,3.5,10000,2203,"内+特","",""],
         [3,"毒龙鞭法",2.5,2.1,60000,3827,"鞭","",""], [3,"九阴神爪",2.5,2.1,60000,4010,"爪","",""], [3,"连城剑法",2.5,2.1,60000,4018,"剑","",""], [3,"血刀狂斩法",2.5,2.1,60000,4019,"刀","",""], [3,"玉箫棍法",2.5,2.1,60000,4020,"棍","",""], [3,"落英神剑掌",2.5,2.1,60000,4021,"掌","",""], [3,"杨家枪法",2.5,2.1,60000,4247,"枪","",""],
-        [4,"寂灭爪",3,2.22,5000,1040,"搏","",""],[4,"太极拳",3,2.28,5000,1107,"拳","",""], [4,"四象掌",3,2.21,5000,1209,"掌","",""], [4,"空明拳",3,2.19,5000,3800,"拳","",""], [4,"黯然掌",3,2.2,5000,3898,"掌","",""], [4,"逍遥游",3,2.16,5000,2605,"拳","",""], [4,"[江湖] 独孤九剑",3,2.29,5000,3869,"剑","",""], [4,"[华山] 独孤九剑",3,2.29,5000,1512,"剑","",""], [4,"华岳剑髓",3,2.2,5000,1521,"剑","",""], [4,"截手九式",3,2.15,5000,1210,"搏","",""], [4,"玄铁剑法",3,2.24,5000,3874,"剑","",""], [4,"北岳剑诀",3,1.91,5000,1909,"剑","",""], [4,"血魔刀法",3,2.23,5000,3205,"刀","",""], [4,"一剑化三清",3,2.2,5000,2309,"剑","",""], [4,"星宿逍遥掌",3,1.91,5000,3308,"掌","",""], [4,"天山六阳掌",3,2.27,5000,3607,"掌","",""], [4,"大力金刚杖",3,2.2,5000,2620,"棍","",""], [4,"降龙十八缺三掌",3,2.25,5000,2618,"掌","",""], [4,"五行掌法",3,2.2,5000,2125,"掌","",""], [4,"烈焰刀法",3,2.23,5000,2226,"刀","",""], [4,"圣火掌法",3,2.28,5000,2225,"掌","",""], [4,"玉箫剑法",3,2.24,5000,2126,"剑","",""], [4,"白虹掌力",3,2.27,5000,1316,"掌","",""], [4,"七伤拳",3,1.87,5000,2206,"拳","",""], [4,"[怀旧专属] 玄冰璃火枪",3,1.91,5000,4250,"枪","",""], 
+        [4,"寂灭爪",3,2.22,5000,1040,"搏","",""],[4,"太极拳",3,2.28,5000,1107,"拳","",""], [4,"四象掌",3,2.21,5000,1209,"掌","",""], [4,"空明拳",3,2.19,5000,3800,"拳","",""], [4,"黯然掌",3,2.2,5000,3898,"掌","",""], [4,"逍遥游",3,2.16,5000,2605,"拳","",""], [4,"[江湖] 独孤九剑",3,2.29,5000,3869,"剑","",""], [4,"[华山] 独孤九剑",3,2.29,5000,1512,"剑","",""], [4,"华岳剑髓",3,2.2,5000,1521,"剑","",""], [4,"截手九式",3,2.15,5000,1210,"搏","",""], [4,"玄铁剑法",3,2.24,5000,3874,"剑","",""], [4,"北岳剑诀",3,1.91,5000,1909,"剑","",""], [4,"血魔刀法",3,2.23,5000,3205,"刀","",""], [4,"一剑化三清",3,2.2,5000,2309,"剑","",""], [4,"星宿逍遥掌",3,1.91,5000,3308,"掌","",""], [4,"天山六阳掌",3,2.27,5000,3607,"掌","",""], [4,"大力金刚杖",3,2.2,5000,2620,"棍","",""], [4,"降龙十八缺三掌",3,2.25,5000,2618,"掌","",""], [4,"五行掌法",3,2.2,5000,2125,"掌","",""], [4,"烈焰刀法",3,2.23,5000,2226,"刀","",""], [4,"圣火掌法",3,2.28,5000,2225,"掌","",""], [4,"玉箫剑法",3,2.24,5000,2126,"剑","",""], [4,"白虹掌力",3,2.27,5000,1316,"掌","",""], [4,"[怀旧专属] 玄冰璃火枪",3,1.91,5000,4250,"枪","",""], 
         [5,"双手互搏",3,3,0,3801,"特","",""], [5,"斗转星移",3,3.995,5000,3972,"特","",""], [5,"葵花宝典",3,4.5,10000,3004,"特","内",""], [5,"乾坤大挪移",3,3.5,10000,2203,"特","内",""], [5,"吸星大法",3,2.6,1000,3864,"特","内",""], [5,"化功大法",3,3,5000,3301,"特","内",""], [5,"凌波微步",3,2.28,5000,1305,"特","轻",""], [5,"神行百变",3,2.28,5000,3812,"特","轻",""], [5,"少林派：金刚护体神功",3,3.49,5000,1053,"特","",""], [5,"武当派：浑沌一气",3,3.49,5000,1128,"特","",""], [5,"峨嵋派：佛顶金光",3,3.49,5000,1216,"特","",""], [5,"逍遥派：三龙四象",3,3.49,5000,1320,"特","",""],[5,"华山派：天外飞龙",3,3.49,5000,1525,"特","",""], [5,"恒山派：菩萨印",3,3.49,5000,1913,"特","",""], [5,"桃花岛：东风绝技",3,3.49,5000,2132,"特","",""], [5,"明教：圣火令神功",3,3.49,5000,2229,"特","",""], [5,"全真教：魁星踢斗",3,3.49,5000,2313,"特","",""], [5,"古墓派：古墓清心诀",3,3.49,5000,2516,"特","",""], [5,"丐帮：铁布衫",3,3.49,5000,2625,"特","",""], [5,"血刀门：浴血纵横",3,3.49,5000,3209,"特","",""], [5,"星宿派：绝顶化功术",3,3.49,5000,3312,"特","",""], [5,"灵鹫宫：春风化雨",3,3.49,5000,3615,"特","",""],
         [6,"基本刀法",3,0.75,5,8001,"刀","基",""], [6,"基本枪法",3,0.78,5,8002,"枪","基",""], [6,"基本剑法",3,0.8,5,8003,"剑","基",""], [6,"基本鞭法",3,0.75,2,8004,"鞭","基",""], [6,"基本棍法",3,0.72,5,8005,"棍","基",""], [6,"基本内功",3,0.8,5,8006,"内","基",""], [6,"基本刺术",3,0.77,0,8007,"刺","基",""], [6,"基本身法",3,0.72,5,8008,"身","基",""], [6,"基本毒术",3,0.85,5,8009,"毒","基",""], [6,"基本医术",3,0.75,2,8010,"医","基",""], [6,"基本阵法",3,0.83,5,8011,"阵","基",""], [6,"搏击格斗",3,0.78,0,8012,"搏","基",""], [6,"闪躲纵跃",3,0.75,0,8013,"闪","基",""], [6,"基本暗器",3,0.72,0,8014,"暗","基",""], [6,"拆招卸力",3,0.77,0,8015,"拆","基",""], [6,"读书识字",3,1,0,8017,"悟","基",""], [6,"交易之道",0,0,0,8018,"售","基",""], [6,"门派技能",0,0,0,8019,"技","基",""],
         [7,"少林派：寂灭爪精要",3,3.495,5000,1054,"搏","",""], [7,"武当派：太极拳精要",3,3.495,5000,1129,"搏","",""], [7,"峨嵋派：四象掌精要",3,3.495,5000,1217,"搏","",""], [7,"峨嵋派：截手九式精要",3,3.495,5000,1218,"搏","",""], [7,"逍遥派：白虹掌力精要",3,3.495,5000,1317,"搏","",""], [7,"华山派：独孤九剑精要",3,3.495,5000,1526,"剑","",""], [7,"华山派：华岳剑髓精要",3,3.495,5000,1527,"剑","",""], [7,"恒山派：北岳剑诀精要",3,3.495,5000,1914,"剑","",""], [7,"桃花岛：玉箫剑法精要",3,3.495,5000,2128,"剑","",""], [7,"桃花岛：五行掌法精要",3,3.495,5000,2129,"拳","",""], [7,"明教：圣火掌法精要",3,3.495,5000,2227,"搏","",""], [7,"明教：烈焰刀法精要",3,3.495,5000,2228,"刀","",""], [7,"全真教：一剑化三清精要",3,3.495,5000,2314,"剑","",""], [7,"全真教：空明拳精要",3,3.495,5000,2315,"搏","",""], [7,"古墓派：黯然掌精要",3,3.495,5000,2517,"搏","",""], [7,"古墓派：玄铁剑法精要",3,3.495,5000,2518,"剑","",""], [7,"丐帮：降龙十八缺三掌精要",3,3.495,5000,2626,"搏","",""], [7,"丐帮：大力金刚杖法精要",3,3.495,5000,2627,"棍","",""], [7,"丐帮：逍遥游精要",3,3.495,5000,2628,"搏","",""], [7,"血刀门：血魔刀法精要",3,3.495,5000,3210,"刀","",""], [7,"星宿派：星宿逍遥掌精要",3,3.495,5000,3313,"搏","",""], [7,"灵鹫宫：天山六阳掌精要",3,3.495,5000,3616,"搏","",""],
-        [8,"快刀",3,2.13,5000,3883,"刀","",""], [8,"五毒爪",5,1.33,5000,5400,"搏","",""], [8,"一阳指",3,2.13,5000,2708,"拳","",""], [8,"四门刀法",3,2.13,5000,3887,"刀","",""], [8,"狂风刀法",3,2.13,5000,3888,"刀","",""], [8,"金乌刀法",3,1.336,5000,3504,"刀","",""], [8,"辟邪剑法",3,0.72,3,3810,"剑","",""], [8,"假·九阴真经",3,4.5,10000,3803,"内","",""], [8,"雪山剑法",3,1.33,5000,3881,"剑","",""], [8,"泰山剑法",3,1.33,5000,3882,"剑","",""], [8,"昆仑剑法",3,1.333,5000,3884,"剑","",""], [8,"吸星大法",3,2.6,1000,3864,"特","内",""], [8,"九阴白骨爪",3,5.55,10000,3862,"爪","",""], [8,"罗汉伏魔神功",3,2.7,1000,3805,"内","",""], [8,"幻阴指",3,2.83,5000,4249,"指","",""], [8,"失意破魂剑",3,1.12,0,3894,"剑","",""], [8,"寒冰烈火掌",3,1.12,0,3892,"掌","",""], [8,"神龙谜踪拳",3,1.12,0,3891,"拳","",""], [8,"辟毒洗血经",3,1.12,0,3895,"内","",""], [8,"怒无极刀法",3,1.12,0,3893,"刀","",""], [8,"炎龙孤星掌",3,1.12,0,3890,"掌","",""], [8,"躺尸剑法",2.7,0.7,1000,3809,"剑","",""], [8,"唐诗剑法",2.5,0.7,70000,3879,"剑","",""], [8,"松节",3,3.495,5000,4127,"阵","",""], [8,"背弓",3,3.495,5000,4128,"阵","",""], [8,"清流",3,3.495,5000,4129,"阵","",""], [8,"苍月",3,3.495,5000,4130,"阵","",""],
+        [8,"快刀",3,2.13,5000,3883,"刀","",""], [8,"五毒爪",5,1.33,5000,5400,"搏","",""], [8,"一阳指",3,2.13,5000,2708,"拳","",""], [8,"四门刀法",3,2.13,5000,3887,"刀","",""], [8,"狂风刀法",3,2.13,5000,3888,"刀","",""], [8,"金乌刀法",3,1.336,5000,3504,"刀","",""], [8,"辟邪剑法",3,0.72,3,3810,"剑","",""], [8,"假·九阴真经",3,4.5,10000,3803,"内","",""], [8,"雪山剑法",3,1.33,5000,3881,"剑","",""], [8,"泰山剑法",3,1.33,5000,3882,"剑","",""], [8,"昆仑剑法",3,1.333,5000,3884,"剑","",""], [8,"吸星大法",3,2.6,1000,3864,"特","内",""], [8,"九阴白骨爪",3,5.55,10000,3862,"爪","",""], [8,"罗汉伏魔神功",3,2.7,1000,3805,"内","",""], [8,"幻阴指",3,2.83,5000,4249,"指","",""], [8,"失意破魂剑",3,1.12,0,3894,"剑","",""], [8,"寒冰烈火掌",3,1.12,0,3892,"掌","",""], [8,"神龙谜踪拳",3,1.12,0,3891,"拳","",""], [8,"辟毒洗血经",3,1.12,0,3895,"内","",""], [8,"怒无极刀法",3,1.12,0,3893,"刀","",""], [8,"炎龙孤星掌",3,1.12,0,3890,"掌","",""], [8,"躺尸剑法",2.7,0.7,1000,3809,"剑","",""], [8,"唐诗剑法",2.5,0.7,70000,3879,"剑","",""], [4,"七伤拳",3,1.87,5000,2206,"拳","",""], [8,"松节",3,3.495,5000,4127,"阵","",""], [8,"背弓",3,3.495,5000,4128,"阵","",""], [8,"清流",3,3.495,5000,4129,"阵","",""], [8,"苍月",3,3.495,5000,4130,"阵","",""],
         [9,"丐帮：丐帮心法",3,0.55,10,2600,"内","一阶","丐帮"], [9,"丐帮：擒龙功",3,1.25,150,2601,"搏","二阶","丐帮"], [9,"丐帮：混天功",3,1.6,500,2602,"内","二阶","丐帮"], [9,"丐帮：丐帮身法",3,0.64,3,2603,"轻","一阶","丐帮"], [9,"丐帮：铜鎚手",3,0.9,3,2604,"搏","一阶","丐帮"], [9,"丐帮：太祖长拳",3,0.98,3,2607,"搏","一阶","丐帮"], [9,"丐帮：莲花掌",3,1.424,5000,2608,"搏","三阶","丐帮"], [9,"丐帮：缠丝擒拿手",3,1.3,300,2609,"搏","二阶","丐帮"], [9,"丐帮：疯魔杖法",3,1.33,5000,2610,"棍","二阶","丐帮"], [9,"丐帮：六合刀法",3,0.95,5,2612,"刀","一阶","丐帮"], [9,"丐帮：满天花雨",3,2.2,3000,2613,"暗","","丐帮"], [9,"丐帮：太祖棍法",3,0.75,5,2614,"棍","一阶","丐帮"], [9,"丐帮：打狗阵法",3,1,3,2615,"阵","","丐帮"], [9,"丐帮：阴山掌大九式",3,1.403,5000,2616,"搏","三阶","丐帮"], [9,"丐帮：回风拂柳拳",3,1.34,5000,2617,"搏","三阶","丐帮"], [9,"丐帮：降龙掌",3,1.66,5000,2619,"搏","三阶","丐帮"], [9,"丐帮：打狗棍法",3,1.66,5000,2621,"棍","三阶","丐帮"],
         [10,"少林派：拈花指",3,0.75,3.7,1020,"搏","一阶","少林派"], [10,"少林派：一指禅",3,0.95,3,1021,"刺","二阶","少林派"], [10,"少林派：罗汉拳",3,0.68,2.25,1007,"搏","二阶","少林派"], [10,"少林派：风云手",3,0.76,1.35,1024,"搏","一阶","少林派"], [10,"少林派：鹰爪功",3,0.85,2.2,1023,"搏","二阶","少林派"], [10,"少林派：龙爪功",3,1.41,5000,1008,"搏","三阶","少林派"], [10,"少林派：韦陀杵",3,1.73,5000,1046,"搏","三阶","少林派"], [10,"少林派：慈悲刀法",3,0.79,1.08,1009,"刀","一阶","少林派"], [10,"少林派：修罗刀法",3,0.86,2.25,1010,"刀","二阶","少林派"], [10,"少林派：燃木刀法",3,1.45,5000,1011,"刀","三阶","少林派"], [10,"少林派：韦陀棍法",3,0.76,3,1016,"棍","二阶","少林派"], [10,"少林派：达摩剑法",3,0.96,1.9,1013,"剑","二阶","少林派"], [10,"少林派：伏魔剑法",3,0.79,5000,1014,"剑","三阶","少林派"], [10,"少林派：普渡杖法",3,0.78,2.25,1015,"棍","一阶","少林派"], [10,"少林派：罗汉剑法",3,0.79,1.08,1012,"剑","一阶","少林派"], [10,"少林派：少林长拳",3,0.75,1,1006,"搏","一阶","少林派"], [10,"少林派：日月鞭法",3,1.54,5000,1018,"鞭","三阶","少林派"], [10,"少林派：伏魔禅仗",3,0.99,3.4,1017,"棍","三阶","少林派"], [10,"少林派：少林擒拿十八打",3,0.81,0,1022,"搏","一阶","少林派"], [10,"少林派：少林心法",3,0.9,10,1000,"内","一阶","少林派"], [10,"少林派：少林九阳功",3,2,5000,1001,"内","二阶","少林派"], [10,"少林派：少林身法",3,0.8,1,1003,"轻","一阶","少林派"], [10,"少林派：轻身术",3,0.82,1,1004,"轻","二阶","少林派"], [10,"少林派：翻腾术",3,1.47,2.5,1005,"轻","三阶","少林派"], [10,"少林派：金刚伏魔圈",3,0.99,3.4,1019,"阵","","少林派"],[10,"少林派：大力金刚指",3,1.569,5000,1027,"刺","三阶","少林派"],[10,"少林派：罗汉伏虎拳",3,1.494,5000,1028,"搏","三阶","少林派"],[10,"少林派：金刚般若掌",3,1.534,5000,1029,"搏","三阶","少林派"],
         [11,"武当派：武当长拳",3,0.68,3.7,1105,"搏","一阶","武当派"], [11,"武当派：绵掌",3,0.86,2,1106,"搏","二阶","武当派"], [11,"武当派：柔云剑法",3,0.72,3,1108,"剑","一阶","武当派"], [11,"武当派：绕指柔剑",3,0.97,2,1109,"剑","二阶","武当派"], [11,"武当派：太极剑法",3,1.95,5000,1110,"剑","三阶","武当派"], [11,"武当派：玄虚刀法",3,0.77,2,1111,"刀","一阶","武当派"], [11,"武当派：倚天屠龙笔法",3,1.56,5000,1112,"枪","三阶","武当派"], [11,"武当派：真武七截阵",3,1.24,2,1113,"阵","三阶","武当派"], [11,"武当派：虎爪绝户手",3,1.62,5000,1114,"搏","三阶","武当派"], [11,"武当派：无极玄功拳",3,1.41,5000,1121,"搏","三阶","武当派"], [11,"武当派：神门十三剑",3,1.446,5000,1122,"剑","三阶","武当派"], [11,"武当派：两仪剑法",3,1.51,5000,1123,"剑","三阶","武当派"], [11,"武当派：武当身法",3,0.84,0,1103,"轻","一阶","武当派"], [11,"武当派：梯云纵",3,1.12,2,1104,"轻","二阶","武当派"], [11,"武当派：武当心法",3,0.95,10,1100,"内","一阶","武当派"], [11,"武当派：太极神功",3,1.4,100,1101,"内","二阶","武当派"], [11,"武当派：纯阳无极功",3,3,1000,1102,"内","三阶","武当派"],
@@ -2666,7 +2810,7 @@ button:not(:disabled):active {
     const TIANWU_BASE = { "JUE": 550, "PARRY": 400 };
     const SKILL_SPECIFIC_CAPS = { "读书识字": 100, "双手互搏": 200, "斗转星移": 250, "凌波微步": 200, "神行百变": 200, "乾坤大挪移": 250, "吸星大法": 250, "化功大法": 250, "金刚护体神功": 250, "浑沌一气": 250, "佛顶金光": 250, "三龙四象": 250, "天外飞龙": 250, "菩萨印": 250, "东风绝技": 250, "圣火令神功": 250, "魁星踢斗": 250, "古墓清心诀": 250, "铁布衫": 250, "浴血纵横": 250, "绝顶化功术": 250, "春风化雨": 250 };
     const READING_WHITELIST = ["少林心法","少林身法","少林长拳","罗汉拳","龙爪功","慈悲刀法","修罗刀法","燃木刀法","罗汉剑法","达摩剑法","伏魔剑法","普渡杖法","韦陀棍法","伏魔禅杖","拈花指","一指禅","少林擒拿十八打","鹰爪功","风云手","如来千叶手","武当心法","武当身法","武当长拳","绵掌","柔云剑法","绕指柔剑","玄虚刀法","倚天屠龙笔法","真武七截阵","神门十三剑","金顶绵掌","飘雪穿云掌","回风拂柳剑","灭剑","峨嵋身法","天罡指穴法","峨嵋剑阵","华山心法","紫霞功","伏虎拳","劈石破玉拳","混元掌","反两仪刀法","华山剑法","淑女剑","华山身法","冲灵剑法","夺命连环三仙剑","恒山心法","恒山剑法","天长掌法","恒山身法","恒山剑阵","全真心法","金雁功","全真剑法","同归剑法","昊天掌","天罡北斗阵","古墓心法","玉女心经","天罗地网势","迎风拂柳步","美女拳","玉女剑法","银索金铃索法","玉蜂针","天罗地网掌","美女剑法","冰魄银针","拂尘功","全真剑术","丐帮心法","擒龙功","混天功","丐帮身法","铜锤手","太祖长拳","莲花掌","缠丝擒拿手","疯魔杖法","六合刀法","太祖棍法","阴山掌大九式","回风拂柳拳","降龙掌","血刀心法","血海魔功","血刀刀法","灭仙掌","雪遁步行","星宿心法","星宿身法","抽髓掌","三阴蜈蚣爪","天山杖法","飞星术","逍遥心法","八荒六合唯我独尊功","月影舞步","天山折梅手","天山六阳掌","白虹掌","少林九阳功","轻身术","翻腾术","日月鞭法","金刚伏魔圈","大力金刚指","罗汉伏虎拳","金刚般若掌","寂灭爪","韦陀杵","太极神功","纯阳无极功","梯云纵","太极拳","太极剑法","峨嵋九阳功","佛光普照掌","绝剑","四象掌","截手九式","狂风快剑","太岳三青峰","独孤九剑","万花剑法","先天气功","三花聚顶掌","重阳剑法","空明拳","赤炼神掌","三无三不手","玄铁剑法","黯然掌","逍遥游","打狗阵法","降龙十八缺三掌","血魔刀法","虎爪绝户手","华岳剑髓","北岳剑诀","一剑化三清","大力金刚杖","星宿逍遥掌","七伤拳","罗汉伏魔神功","辟邪剑法","狂风刀法","吸星大法","雪山剑法","泰山剑法","五毒爪","九阴白骨爪","化功大法","放毒法","鹰爪擒拿手","千蛛万毒手","狮子吼","寒冰绵掌","蝠王功","圣火掌法","烈焰刀法","灵鳌步","桃花附骨针","碧海潮生曲","兰花拂穴手","二十八宿小阵","三招火叉","五行掌法","玉箫剑法","弹指神通","不老长春功","逍遥摄心爪","传音搜魂大法","寒袖拂穴","摘星功","天鉴神功","白虹掌力","生死符","伏虎掌","铜鎚手","一阳指","快刀","四门刀法"];
-    const TIANWU_UNLOCK_LEVELS = { "苗家剑法": 330, "白蟒鞭法": 330, "野球拳": 270, "降龙十八掌": 330, "独孤九剑奥义": 330, "六脉神剑": 330, "打狗棒法": 330, "胡家刀法": 330, "金刚伏魔鞭法": 330, "杨家霸王枪": 330, "大金刚掌": 330, "冰蚕神掌": 350, "火焰刀法": 350, "真·辟邪剑法": 350, "黯然消魂掌": 350, "西毒杖法": 350, "金蛇剑法": 370, "太玄经": 137, "易筋经": 138, "洗髓经": 138, "神照经": 139, "葵花宝典": 124, "先天功": 142, "蛤蟆功": 143, "小无相功": 150, "龙象般若功": 150, "逆行经脉": 150, "九阴真经": 118, "乾坤大挪移": 128, "北冥神功": 140, "九阳神功": 113, "毒龙鞭法": 270, "九阴神爪": 270, "连城剑法": 270, "血刀狂斩法": 270, "玉箫棍法": 270, "落英神剑掌": 270, "杨家枪法": 270 };
+    const TIANWU_UNLOCK_LEVELS = { "苗家剑法": 330, "白蟒鞭法": 330, "野球拳": 270, "降龙十八掌": 330, "独孤九剑奥义": 330, "六脉神剑": 330, "打狗棒法": 330, "胡家刀法": 330, "金刚伏魔鞭法": 330, "杨家霸王枪": 330, "大金刚掌": 330, "冰蚕神掌": 350, "火焰刀法": 350, "真·辟邪剑法": 350, "黯然消魂掌": 350, "西毒杖法": 350, "金蛇剑法": 350, "太玄经": 138, "易筋经": 138, "洗髓经": 138, "神照经": 138, "葵花宝典": 138, "先天功": 138, "蛤蟆功": 138, "小无相功": 138, "龙象般若功": 138, "逆行经脉": 138, "九阴真经": 138, "乾坤大挪移": 128, "北冥神功": 138, "九阳神功": 138, "毒龙鞭法": 270, "九阴神爪": 270, "连城剑法": 270, "血刀狂斩法": 270, "玉箫棍法": 270, "落英神剑掌": 270, "杨家枪法": 270 };
     function expandSkills() { return raw_skills.map(s => { const cat = typeof s[0] === 'number' ? CAT_MAP[s[0]] : s[0]; return { cat: cat, name: s[1], wgcf: s[2], ndxs: s[3], fjsl: s[4], id: s[5], type: s[6], rank: s[7], school: s[8] }; }); }
     const skillsDB = expandSkills();
 
@@ -2953,19 +3097,70 @@ button:not(:disabled):active {
     function getBibleMultiplier(dataSource) { const getVal = (id) => { if (dataSource === 'DOM') { const el = document.getElementById(id); if (!el) return false; return el.checked; } else return dataSource[id] === true; }; if (getVal('mlx')) return 3; if (getVal('xyc')) return 2.2; if (getVal('tsxnw') || getVal('thgdd')) return 2; return 1; }
 
     function getWx(dataSource) { return dataSource === 'DOM' ? (parseFloat(document.getElementById('wx').value) || 0) : (parseFloat(dataSource['wx']) || 0); }
+
     function getTianwuEfficiency(dataSource, baseSpeed = 0) {
         const getVal = (id) => { if (dataSource === 'DOM') { const el = document.getElementById(id); if (!el) return 0; return el.type === 'checkbox' ? (el.checked ? 1 : 0) : (parseFloat(el.value) || 0); } else return dataSource[id] ? (dataSource[id] === true ? 1 : parseFloat(dataSource[id]) || 0) : 0; };
+        
+        let hasTwm = getVal('twm');   
+        let hasTwp = getVal('twp');   
+        let hasTwhs = getVal('twhs'); 
+        let hasTwx = getVal('twx');   
+
         let basePoints = 0;
-        if(getVal('twm')) basePoints += getVal('twmfj'); if(getVal('twp')) basePoints += getVal('twpfj'); if(getVal('twhs')) basePoints += getVal('twhsfj'); if(getVal('twx')) basePoints += getVal('twxfj');
+        if(hasTwm) basePoints += getVal('twmfj'); 
+        if(hasTwp) basePoints += getVal('twpfj'); 
+        if(hasTwhs) basePoints += getVal('twhsfj'); 
+        if(hasTwx) basePoints += getVal('twxfj');
+        
         let fixedPoints = getVal('twqd') * 30 + getVal('twtd') * 12 + getVal('twxj') * 8;
         let twzjVal = getVal('twzj'); if (twzjVal > 1500) twzjVal = 1500; fixedPoints += Math.floor(twzjVal / 10) * 5;
+        
         let multiplier = 0;
-        if(getVal('tmwq')) { const wqLv = getVal('tmwqfj'); const wqMap = [0, 1, 2, 3, 4, 5, 6, 7, 9, 11, 15]; if(wqLv >= 0 && wqLv < wqMap.length) multiplier += wqMap[wqLv]; }
+
+        if (hasTwm) multiplier += 6;  
+        if (hasTwp) multiplier += 10; 
+        if (hasTwhs) multiplier += 5; 
+        if (hasTwx) multiplier += 6;  
+        if (hasTwm && hasTwp && hasTwhs && hasTwx) multiplier += 8; 
+
+        if(getVal('tmwq')) { const wqLv = getVal('tmwqfj'); if (wqLv > 0) multiplier += wqLv; }
         if(getVal('tmflj')) multiplier += 8;
-        if(getVal('tmzh')) { const wqLv = getVal('tmwqfj'); if (wqLv === 10) multiplier += 10; else if (wqLv >= 8) multiplier += 5; else multiplier += 2; }
+        if(getVal('tmzh')) { const wqLv = getVal('tmwqfj'); if (wqLv >= 10) multiplier += 10; else if (wqLv >= 8) multiplier += 5; else multiplier += 2; }
         multiplier += getVal('twxdan') * 1; if(getVal('twd')) multiplier += 5;
-        return Math.floor((baseSpeed + basePoints + fixedPoints) * (1 + multiplier / 100));
+
+        let serverBaseOffset = 0;      // 若发现基础点数有偏差可调此项
+        let serverMultOffset = 11.15;  // 隐藏倍率补偿
+        
+        return Math.floor((baseSpeed + basePoints + fixedPoints + serverBaseOffset) * (1 + (multiplier + serverMultOffset) / 100));
     }
+
+    function checkTianwuSetAnimation() {
+    const ids = ['twm', 'twp', 'twhs', 'twx'];
+    let allActive = true;
+    let cards = [];
+    
+    // 检查4件套是否全部打勾，并收集它们的卡片容器DOM
+    for (let id of ids) {
+        let el = document.getElementById(id);
+        if (!el || !el.checked) {
+            allActive = false; // 只要有一个没勾选，就判定未凑齐
+        }
+        if (el) {
+            cards.push(el.closest('.config-card'));
+        }
+    }
+    
+    // 批量赋予或剥夺发光动画
+    cards.forEach(card => {
+        if (card) {
+            if (allActive) {
+                card.classList.add('tianwu-set-active');
+            } else {
+                card.classList.remove('tianwu-set-active');
+            }
+        }
+    });
+}
 
     const TICKS_PER_DAY_TW = 1260; const BIBLE_USES_PER_BOOK = 5; const BIBLE_MINS_PER_USE = 6; const FIXED_SS_HOURS = 21; 
     const EXP_CONSTANTS = { BOOK_FULL: 2500000, BOOK_SECRET: 400000, BOOK_ESSENCE: 65200 };
@@ -8154,8 +8349,7 @@ button:not(:disabled):active {
     }
 
     function updateSkillData() { const v = document.getElementById('skillSelect').value; if(v) { const k = JSON.parse(v); document.getElementById('disp_wgcf').innerText = k.wgcf; document.getElementById('disp_ndxs').innerText = k.ndxs; document.getElementById('disp_fjsl').innerText = k.fjsl; if (LEVEL_CAPS[k.cat]) { document.getElementById('mbdj').value = getSkillLevelCap(k); } else { document.getElementById('mbdj').value = 200; } } }
-    function updateSoulLogic() { const check = document.getElementById('tmzh'), display = document.getElementById('tmzh_val'); if (!check.checked) { display.value = "0%"; return; } const weaponLv = parseInt(document.getElementById('tmwqfj').value) || 0; if (weaponLv === 10) display.value = "10%"; else if (weaponLv >= 8) display.value = "5%"; else display.value = "2%"; }
-    
+    function updateSoulLogic() { const check = document.getElementById('tmzh'), display = document.getElementById('tmzh_val'); if (!check.checked) { display.value = "0%"; return; } const weaponLv = parseInt(document.getElementById('tmwqfj').value) || 0; if (weaponLv >= 10) display.value = "10%"; else if (weaponLv >= 8) display.value = "5%"; else display.value = "2%"; }    
     function maxAttributes() { 
         // 1. 勾选所有开关
         ['twm', 'twp', 'twhs', 'twx', 'tmwq', 'tmflj', 'zxjbd', 'twd', 'tmzh', 'tsxnw', 'thgdd', 'xyc', 'mlx', 'is_gold_medal'].forEach(id => { const el = document.getElementById(id); if(el) el.checked = true; }); 
@@ -8232,8 +8426,19 @@ button:not(:disabled):active {
     }
     
     const ITEM_BASE_DATA = { 'tqxd': { name: '天勤仙丹', base: 4, unit: '' }, 'tqjd': { name: '天勤金丹', base: 2, unit: '' }, 'tmtd': { name: '天命天丹', base: 160, unit: '' }, 'twqd': { name: '天悟奇丹', base: 30, unit: '' }, 'twtd': { name: '天悟天丹', base: 12, unit: '' }, 'twxdan': { name: '天悟仙丹', base: 1, unit: '%' }, 'twxj': { name: '天悟玄剂', base: 8, unit: '' } };
-    function updateItemLabels() { for (const [id, info] of Object.entries(ITEM_BASE_DATA)) { const el = document.getElementById(id), label = document.getElementById('lbl_' + id); if (el && label) { const count = parseInt(el.value) || 0; label.innerText = count > 0 ? `${info.name}(+${info.base * count}${info.unit})` : info.name; } } }
-    
+
+    function updateItemLabels() { 
+        for (const [id, info] of Object.entries(ITEM_BASE_DATA)) { 
+            const el = document.getElementById(id);
+            const label = document.getElementById('lbl_' + id); 
+            if (el && label) { 
+                const count = parseInt(el.value) || 0; 
+                // 🚀 将原本的 ( ) 修改为 [ ]
+                label.innerText = count > 0 ? `${info.name}[+${info.base * count}${info.unit}]` : info.name; 
+            } 
+        } 
+    }
+
     const AUTO_SAVE_KEY = 'jy_auto_state_v1';
     
     function autoSaveState() { 
@@ -8260,6 +8465,8 @@ button:not(:disabled):active {
         }; 
         CONFIG_IDS.forEach(id => { const el = document.getElementById(id); if(el) state.config[id] = (el.type === 'checkbox' ? el.checked : el.value); }); 
         localStorage.setItem(AUTO_SAVE_KEY, JSON.stringify(state)); 
+        // 👇 每次保存面板状态时，顺便判定一次4件套是否凑齐
+        if (typeof checkTianwuSetAnimation === 'function') checkTianwuSetAnimation();
     }
     
     function loadAutoState() { 
@@ -8372,7 +8579,7 @@ button:not(:disabled):active {
 
         initCategories(); updateProfileUI(); renderChart([], []);
         ['tqxd', 'tqjd', 'twqd', 'twtd', 'twxj', 'twxdan', 'tmtd'].forEach(id => { const el = document.getElementById(id); if (el) for(let i=0; i<=10; i++) el.add(new Option(i, i)); });
-        const wep = document.getElementById('tmwqfj'); if (wep) [0,1,2,3,4,5,6,7,8,9,10].forEach(i => wep.add(new Option(i, i)));
+        const wep = document.getElementById('tmwqfj'); if (wep) [0,1,2,3,4,5,6,7,8,9,10,11,20].forEach(i => wep.add(new Option(i, i)));
         // 在 window.onload 中调用一次
         ['twm', 'twp', 'twhs', 'twx'].forEach(id => syncSliderState(id, id + 'fj'));
 
@@ -9316,6 +9523,93 @@ document.querySelectorAll('input').forEach(input => {
         }
     };
 
+    // ==========================================
+// 🚀 原版移植：脱胎模拟器核心逻辑 (20%限制)
+// ==========================================
+function initOldAttributeAdjuster() {
+    const attrs = ['bl', 'ds', 'wx', 'fy', 'dl', 'jm', 'gb'];
+
+    // 核心计算调度
+    window.updateTt = function() {
+        let pool = 0;
+        // 计算池子：扣除的点数(负数)转为正资产，增加的点数(正数)消耗资产
+        attrs.forEach(a => {
+            let delta = parseInt(document.getElementById('tt_' + a + '1').innerText) || 0;
+            pool -= delta; 
+        });
+        document.getElementById('sysx').innerText = pool;
+
+        // 渲染最终结果：如果差值不是0，则在UI上给予高亮反馈
+        attrs.forEach(a => {
+            let base = parseInt(document.getElementById('tt_' + a).value) || 0;
+            let delta = parseInt(document.getElementById('tt_' + a + '1').innerText) || 0;
+            let resEl = document.getElementById('tt_' + a + '2');
+            let diffEl = document.getElementById('tt_' + a + '1');
+            
+            resEl.innerText = base + delta;
+            
+            // UI 色彩增强（维持与原版逻辑一致，增加视觉反馈）
+            if (delta > 0) diffEl.style.color = "var(--accent-green)";
+            else if (delta < 0) diffEl.style.color = "var(--danger)";
+            else diffEl.style.color = "var(--text-muted)";
+        });
+    };
+
+    attrs.forEach(a => {
+        // ➖ 减号逻辑：受限于基础值的 20%
+        window['j' + a] = function() {
+            let base = parseInt(document.getElementById('tt_' + a).value) || 0;
+            if (base <= 0) return; 
+            
+            let deltaEl = document.getElementById('tt_' + a + '1');
+            let delta = parseInt(deltaEl.innerText) || 0;
+            let maxMinus = Math.floor(base * 0.2); // 绝对限制 20%
+
+            if (delta > -maxMinus) {
+                deltaEl.innerText = delta - 1;
+                updateTt();
+            }
+        };
+
+        // ➕ 加号逻辑：受限于是否有剩余的属性点
+        window['jj' + a] = function() {
+            let base = parseInt(document.getElementById('tt_' + a).value) || 0;
+            if (base <= 0) return; 
+            
+            let pool = parseInt(document.getElementById('sysx').innerText) || 0;
+            if (pool > 0) {
+                let deltaEl = document.getElementById('tt_' + a + '1');
+                let delta = parseInt(deltaEl.innerText) || 0;
+                deltaEl.innerText = delta + 1;
+                updateTt();
+            }
+        };
+
+        // 监听输入框变化：只要动了基础属性，当前项的调整进度强行清零
+        let inputEl = document.getElementById('tt_' + a);
+        if(inputEl) {
+            inputEl.addEventListener('input', function() {
+                document.getElementById('tt_' + a + '1').innerText = '0';
+                updateTt();
+            });
+        }
+    });
+
+    // 重置按钮：全盘清空
+    window.cxsy = function() {
+        attrs.forEach(a => {
+            document.getElementById('tt_' + a).value = '';
+            document.getElementById('tt_' + a + '1').innerText = '0';
+            document.getElementById('tt_' + a + '1').style.color = 'var(--text-muted)';
+            document.getElementById('tt_' + a + '2').innerText = '0';
+        });
+        document.getElementById('sysx').innerText = '0';
+    };
+}
+
+// 页面加载完成后自动绑定事件
+document.addEventListener('DOMContentLoaded', initOldAttributeAdjuster);
+
     // 修复进入江湖动画丢失问题
     window.triggerElegantTransition = function(callback) {
         const btn = document.querySelector('.btn-premium-enter');
@@ -9502,6 +9796,12 @@ document.querySelectorAll('input').forEach(input => {
                     accFull = currentAccDays; accSecret = currentAccDays * 2;
                     inventory.fullBook += generatedFull; inventory.secretBook += generatedSecret;
                     
+                    // 🚀 【变更点1】记录本节点的产出与初始化消耗记录，供反向回溯算法使用
+                    node.generatedFull = generatedFull;
+                    node.generatedSecret = generatedSecret;
+                    node.allocatedFull = 0;
+                    node.allocatedSecret = 0;
+
                     let eff = node.eff; 
                     if(!node._actualConsumption) node._actualConsumption = {};
                     
@@ -9515,8 +9815,13 @@ document.querySelectorAll('input').forEach(input => {
                         let actFull = Math.min(wantFull, Math.floor(inventory.fullBook)); let actSecret = Math.min(wantSecret, Math.floor(inventory.secretBook));
                         node._actualConsumption[sid] = { full: actFull, secret: actSecret };
                         inventory.fullBook -= actFull; inventory.secretBook -= actSecret;
+                        
+                        // 🚀 【变更点2】累加本节点实际消耗掉的书籍数量
+                        node.allocatedFull += actFull;
+                        node.allocatedSecret += actSecret;
                     });
                     
+                    // 临时存储当前剩余量，最后会被反向算法修正
                     node.inventorySnapshot = { full: Math.floor(inventory.fullBook), secret: Math.floor(inventory.secretBook) };
 
                     let baseStatus = JSON.parse(JSON.stringify(runningStatus));
@@ -9687,8 +9992,7 @@ document.querySelectorAll('input').forEach(input => {
 
                     node.usedHours = Math.max(nodeHours - zixiuHoursLeft, maxZixiuUsedInNode);
                     
-                    // 🚀 V56：天悟独立并跑，即使操作选了“无操作”，也能凭天悟加经验！
-                    if(node.cumulativeHours >= 4000) {
+                        if(node.cumulativeHours > 4000) {
                         let twDailyUlt = Math.floor(Number(eff.twUltTick) * (typeof TICKS_PER_DAY_TW !== 'undefined' ? Number(TICKS_PER_DAY_TW) : 1260));
                         let twDailyParry = Math.floor(Number(eff.twParryTick) * (typeof TICKS_PER_DAY_TW !== 'undefined' ? Number(TICKS_PER_DAY_TW) : 1260));
                         
@@ -9740,6 +10044,57 @@ document.querySelectorAll('input').forEach(input => {
                     node.startTimeStr = this._formatDate(nodeStartTime); node.endTimeStr = this._formatDate(nodeEndTime);
                 });
                 
+                // =========================================================================
+                // 🚀 【变更点3：核心新增时光倒流机制】(完美修正版：双向扫荡算法)
+                // =========================================================================
+                let demandFull = 0;
+                let demandSecret = 0;
+
+                // 第一次反向遍历：计算每个节点实际“存留”下来，且没被未来透支吃掉的净产量
+                for (let i = this.state.nodes.length - 1; i >= 0; i--) {
+                    let n = this.state.nodes[i];
+                    
+                    // 计算全书
+                    let diffFull = n.generatedFull - n.allocatedFull;
+                    if (diffFull < 0) {
+                        demandFull += Math.abs(diffFull);
+                        n._retainedFull = 0;
+                    } else {
+                        if (demandFull > 0) {
+                            let fill = Math.min(diffFull, demandFull);
+                            demandFull -= fill;
+                            diffFull -= fill;
+                        }
+                        n._retainedFull = diffFull;
+                    }
+
+                    // 计算秘本
+                    let diffSecret = n.generatedSecret - n.allocatedSecret;
+                    if (diffSecret < 0) {
+                        demandSecret += Math.abs(diffSecret);
+                        n._retainedSecret = 0;
+                    } else {
+                        if (demandSecret > 0) {
+                            let fill = Math.min(diffSecret, demandSecret);
+                            demandSecret -= fill;
+                            diffSecret -= fill;
+                        }
+                        n._retainedSecret = diffSecret;
+                    }
+                }
+
+                // 第二次正向遍历：将没有被消耗的净产量进行时间线累加，生成绝对准确的动态结余快照
+                let accRetainedFull = 0;
+                let accRetainedSecret = 0;
+                for (let i = 0; i < this.state.nodes.length; i++) {
+                    let n = this.state.nodes[i];
+                    accRetainedFull += n._retainedFull;
+                    accRetainedSecret += n._retainedSecret;
+                    
+                    n.inventorySnapshot.full = accRetainedFull;
+                    n.inventorySnapshot.secret = accRetainedSecret;
+                }
+                
                 localStorage.setItem('jy_sim_v56_state', JSON.stringify(this.state));
                 this.renderDOM(); this.renderDashboard();
                 const chartWrapper = document.getElementById('sim_chart_wrapper');
@@ -9750,27 +10105,144 @@ document.querySelectorAll('input').forEach(input => {
             drawChart() {
             if (typeof Chart === 'undefined') return;
             if (this.state.trackedSkills.length === 0 || this.state.nodes.length === 0) return;
-            const wrapper = document.getElementById('sim_chart_wrapper'); const canvas = document.getElementById('simTimelineChart');
+            const wrapper = document.getElementById('sim_chart_wrapper'); 
+            const canvas = document.getElementById('simTimelineChart');
             if (!wrapper || !canvas) return;
-            canvas.style.minHeight = '350px'; wrapper.style.display = 'block';
-            const ctx = canvas.getContext('2d'); if (this.chartInstance) this.chartInstance.destroy();
-            let labels = ['0h']; this.state.nodes.forEach(n => labels.push(`${n.cumulativeHours}h`));
-            let datasets = []; const colors = ['#d4af37', '#00bcd4', '#4caf50', '#ff4444', '#9c27b0', '#ff9800', '#00e676', '#ff4081'];
+            
+            canvas.style.minHeight = '350px'; 
+            wrapper.style.display = 'block';
+            
+            const ctx = canvas.getContext('2d'); 
+            if (this.chartInstance) this.chartInstance.destroy();
+            
+            let labels = ['0h']; 
+            this.state.nodes.forEach(n => labels.push(`${n.cumulativeHours}h`));
+            
+            let datasets = []; 
+            const colors = ['#d4af37', '#00bcd4', '#4caf50', '#ff4444', '#9c27b0', '#ff9800', '#00e676', '#ff4081'];
+            
+            // 🚀 核心修改 1：搜集并按武学类别进行分组
+            let categorizedDatasets = {};
+
             this.state.trackedSkills.forEach((s, idx) => {
                 let dataPoints = [s.startLv]; 
                 this.state.nodes.forEach(n => { 
                     let sid = String(s.uid || s.id);
-                    if (n.index < (Number(s.introducedAtNode) || 0)) { dataPoints.push(null); } else { let st = n.snapshot[sid] || { lv: s.startLv }; dataPoints.push(st.lv); }
+                    if (n.index < (Number(s.introducedAtNode) || 0)) { 
+                        dataPoints.push(null); 
+                    } else { 
+                        let st = n.snapshot[sid] || { lv: s.startLv }; 
+                        dataPoints.push(st.lv); 
+                    }
                 });
-                datasets.push({ label: s.skill.name, data: dataPoints, borderColor: colors[idx % colors.length], backgroundColor: colors[idx % colors.length] + '33', fill: false, tension: 0.2, spanGaps: true, borderWidth: 2, pointRadius: 4, pointHoverRadius: 7, pointBackgroundColor: '#0f0f12', pointBorderWidth: 2 });
+                
+                let color = colors[idx % colors.length];
+                datasets.push({ 
+                    label: s.skill.name, 
+                    data: dataPoints, 
+                    borderColor: color, 
+                    backgroundColor: color + '33', 
+                    fill: false, 
+                    tension: 0.2, 
+                    spanGaps: true, 
+                    borderWidth: 2, 
+                    pointRadius: 4, 
+                    pointHoverRadius: 7, 
+                    pointBackgroundColor: '#0f0f12', 
+                    pointBorderWidth: 2 
+                });
+
+                // 记录武学分类信息，准备生成手写图例
+                const cat = s.skill.cat || "其他武学";
+                if (!categorizedDatasets[cat]) categorizedDatasets[cat] = [];
+                categorizedDatasets[cat].push({
+                    datasetIndex: datasets.length - 1, // 记住它在引擎里的真实序列号
+                    name: s.skill.name,
+                    color: color
+                });
             });
+            
             const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
-            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'; const tickColor = isDark ? '#888' : '#666';
+            const gridColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'; 
+            const tickColor = isDark ? '#888' : '#666';
+            
             try {
-                this.chartInstance = new Chart(ctx, { type: 'line', data: { labels, datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { position: 'top', labels: { color: isDark ? '#e0e0e0' : '#333', font: { size: 13, weight: 'bold' } } }, tooltip: { backgroundColor: 'rgba(0,0,0,0.8)', titleColor: '#d4af37', bodyColor: '#fff', borderColor: 'rgba(212,175,55,0.5)', borderWidth: 1, callbacks: { label: function(context) { return ` ${context.dataset.label}: Lv.${context.parsed.y}`; } } } }, scales: { x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } } }, y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } }, title: { display: true, text: '武学等级 (Lv)', color: tickColor } } } } });
+                this.chartInstance = new Chart(ctx, { 
+                    type: 'line', 
+                    data: { labels, datasets }, 
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false, 
+                        interaction: { mode: 'index', intersect: false }, 
+                        plugins: { 
+                            // 🚀 核心修改 2：强行关闭 Chart.js 原生且简陋的底部图例
+                            legend: { display: false }, 
+                            tooltip: { 
+                                backgroundColor: 'rgba(0,0,0,0.8)', 
+                                titleColor: '#d4af37', 
+                                bodyColor: '#fff', 
+                                borderColor: 'rgba(212,175,55,0.5)', 
+                                borderWidth: 1, 
+                                callbacks: { label: function(context) { return ` ${context.dataset.label}: Lv.${context.parsed.y}`; } } 
+                            } 
+                        }, 
+                        scales: { 
+                            x: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } } }, 
+                            y: { grid: { color: gridColor }, ticks: { color: tickColor, font: { weight: 'bold' } }, title: { display: true, text: '武学等级 (Lv)', color: tickColor } } 
+                        } 
+                    } 
+                });
+
+                // 🚀 核心修改 3：动态生成高级分组图例，并挂载到画板下方
+                let legendContainer = document.getElementById('sim_custom_legend');
+                if (!legendContainer) {
+                    legendContainer = document.createElement('div');
+                    legendContainer.id = 'sim_custom_legend';
+                    // 挂载到 canvas 的父元素（那个包裹高度的 div）的正下方
+                    canvas.parentElement.after(legendContainer);
+                }
+                
+                let legendHtml = '';
+                for (let cat in categorizedDatasets) {
+                    // 拼接每个分类下的所有武学标签
+                    let itemsHtml = categorizedDatasets[cat].map(item => `
+                        <div class="legend-item" data-index="${item.datasetIndex}">
+                            <div class="legend-color-box" style="background: ${item.color}33; border-color: ${item.color};"></div>
+                            <span>${item.name}</span>
+                        </div>
+                    `).join('');
+                    
+                    // 拼接一整行的类别框
+                    legendHtml += `
+                        <div class="legend-group-row">
+                            <div class="legend-group-title">${cat}</div>
+                            ${itemsHtml}
+                        </div>
+                    `;
+                }
+                legendContainer.innerHTML = legendHtml;
+
+                // 🚀 核心修改 4：赋予图例点击隐藏/显示曲线的互动能力
+                legendContainer.querySelectorAll('.legend-item').forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        const index = item.getAttribute('data-index');
+                        const meta = this.chartInstance.getDatasetMeta(index);
+                        // 切换线条的显示状态
+                        meta.hidden = meta.hidden === null ? !this.chartInstance.data.datasets[index].hidden : null;
+                        this.chartInstance.update();
+                        // 切换标签的样式（置灰和删除线）
+                        if (meta.hidden) {
+                            item.classList.add('hidden');
+                        } else {
+                            item.classList.remove('hidden');
+                        }
+                    });
+                });
+
                 setTimeout(() => wrapper.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-            } catch (err) {}
+            } catch (err) { console.error(err); }
         },
+
         _formatDate(d) { if(isNaN(d.getTime())) return "无效日期"; const pad = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '年' + pad(d.getMonth()+1) + '月' + pad(d.getDate()) + '日 ' + pad(d.getHours()) + '时'; },
         _formatTimeSpan(hours) { 
             if (hours === 0 || hours === Infinity) return hours === Infinity ? '无法达成' : '0分';
@@ -9928,7 +10400,7 @@ document.querySelectorAll('input').forEach(input => {
                     </div>`;
                 });
 
-                let timeBarHtml = `<div style="margin-bottom:15px; background:rgba(0,0,0,0.2); border:1px solid var(--border-light); border-radius:6px; padding:10px;"><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px; color:var(--text-muted);"><span>读书通道 [剩余 ${(node.finalReadLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${readBarBlocks}</div><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-top:8px; margin-bottom:4px; color:var(--text-muted);"><span>自修通道 [剩余 ${(node.finalZixiuLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${zixiuBarBlocks}</div></div>`;
+                let timeBarHtml = `<div style="margin-bottom:15px; background:rgba(0,0,0,0.2); border:1px solid var(--border-light); border-radius:6px; padding:10px;"><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom:4px; color:var(--text-muted);"><span>读本 [剩余 ${(node.finalReadLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${readBarBlocks}</div><div style="display:flex; justify-content:space-between; font-size:0.85em; margin-top:8px; margin-bottom:4px; color:var(--text-muted);"><span>自修 [剩余 ${(node.finalZixiuLeft||0).toFixed(1)}h]</span></div><div style="display:flex; width:100%; height:8px; border-radius:4px; overflow:hidden; background:var(--bg-input-locked);">${zixiuBarBlocks}</div></div>`;
                 
                 // 🚀 V56：UI极简美学重构，尺寸严格统一，补全中文！
                 let effSnapHtml = `<div style="background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:6px; padding:12px; margin-bottom:15px;">
@@ -9954,7 +10426,7 @@ document.querySelectorAll('input').forEach(input => {
                                 <img src="icons/天命天丹.png" style="width:16px;height:16px;object-fit:contain;" onerror="this.style.display='none'"> 天命天丹 <input type="number" value="${node.eff.tmtd||0}" style="width:65px; height:24px; box-sizing:border-box; background:var(--bg-input); border:1px solid var(--border); color:var(--text-main); text-align:center; border-radius:4px; font-size:1em;" onchange="window.simEngine.updateNodeEff(${i}, 'tmtd', this.value)">
                             </div>
                         </div>
-                        ${(node.cumulativeHours >= 4000) ? `
+                        ${(node.cumulativeHours > 4000) ? `
                         <div style="display:flex; flex-wrap:wrap; gap:16px; align-items:center; padding-top:10px; border-top:1px dashed var(--border-light);">
                             <div style="display:flex; align-items:center; gap:6px; font-size:0.9em; color:var(--text-muted);">
                                 格挡效率 <input type="number" readonly value="${Number(node.eff.twParryTick).toFixed(2)}" style="width:75px; height:24px; box-sizing:border-box; background:var(--bg-input); border:1px solid var(--border); color:var(--secondary); text-align:center; border-radius:4px; font-size:1em;">
@@ -9970,11 +10442,11 @@ document.querySelectorAll('input').forEach(input => {
                 </div>`;
 
                 let tianwuHtml = '';
-                if(node.cumulativeHours >= 4000) { 
+                if(node.cumulativeHours > 4000) {
                     tianwuHtml = `<div style="margin-top:15px; border-top:1px dashed var(--border-light); padding-top:15px;"><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(45 12 12)"></ellipse><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(135 12 12)"></ellipse></svg> 天悟系统</div><div style="display:flex; gap:15px; margin-bottom: 10px;"><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">绝外</span> <select onchange="window.simEngine.updateTianwuAlloc(${i}, 'outer', this.value)" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${outerOpts}</select></div><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">绝内</span> <select onchange="window.simEngine.updateTianwuAlloc(${i}, 'inner', this.value)" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${innerOpts}</select></div><div style="display:flex; align-items:center; gap:8px; flex:1;"><span style="color:var(--text-muted); font-size:0.85em; width:35px;">格挡</span> <select onchange="window.simEngine.updateTianwuAlloc(${i}, 'parry', this.value)" style="height:26px; padding:0 5px; flex:1; background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); border-radius:4px;">${parryOpts}</select></div></div></div>`;
                 }
                 
-                let nodeHtml = `<div class="sim-node-card" style="overflow-x: auto;"><div class="sim-node-header"><div style="display:flex; align-items:center; gap:10px;"><span class="sim-time-badge">节点：${node.cumulativeHours - node.hours} - ${node.cumulativeHours} 小时</span><span class="sim-date-text">${node.startTimeStr} <span style="color:var(--primary)">➜</span> ${node.endTimeStr}</span></div><button class="btn-action" style="color:var(--danger); border-color:transparent;" onclick="window.simEngine.removeNode(${i})">删除节点</button></div>${effSnapHtml}<div><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 推演序列</div>${timeBarHtml}${actionRows}</div>${tianwuHtml}<div style="margin-top:15px; border-top:1px dashed var(--border-light); padding-top:15px;"><div class="sim-section-title" style="color:#ffffff;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> 当前节点末结余 「<img src="icons/武学全书.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;"> ×${node.inventorySnapshot.full} | <img src="icons/武学秘本.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;"> ×${node.inventorySnapshot.secret}」</div><div style="max-height: 100px; overflow-y:auto; display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">${allocHtml}</div></div></div>`;
+                let nodeHtml = `<div class="sim-node-card" style="overflow-x: auto;"><div class="sim-node-header"><div style="display:flex; align-items:center; gap:10px;"><span class="sim-time-badge">节点：${node.cumulativeHours - node.hours} - ${node.cumulativeHours} 小时</span><span class="sim-date-text">${node.startTimeStr} <span style="color:var(--primary)">➜</span> ${node.endTimeStr}</span></div><button class="btn-action" style="color:var(--danger); border-color:transparent;" onclick="window.simEngine.removeNode(${i})">删除节点</button></div>${effSnapHtml}<div><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> 推演序列</div>${timeBarHtml}${actionRows}</div>${tianwuHtml}<div style="margin-top:15px; border-top:1px dashed var(--border-light); padding-top:15px;"><div class="sim-section-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg> 熟练度物品 [<img src="icons/武学全书.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;">${node.inventorySnapshot.full}<img src="icons/武学秘本.png" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-top:-2px;">${node.inventorySnapshot.secret} ]</div><div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px;">${allocHtml}</div></div></div>`;
                 htmlArray.push(nodeHtml);
             });
             container.innerHTML = htmlArray.join('');
